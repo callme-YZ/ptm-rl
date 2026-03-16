@@ -1,0 +1,41 @@
+PyTokMHD Phase 3 文件清单
+生成时间: 2026-03-16
+
+=== 核心代码 ===
+src/pytokmhd/diagnostics/
+├── __init__.py                (70 lines)
+├── rational_surface.py       (155 lines)
+├── magnetic_island.py        (198 lines)
+├── growth_rate.py            (194 lines)
+├── monitor.py                (197 lines)
+├── visualization.py          (291 lines)
+└── README.md                 (7.2 KB)
+
+=== 测试 ===
+src/pytokmhd/tests/
+└── test_diagnostics.py       (280 lines)
+
+run_diagnostics_tests.py       (50 lines)
+
+=== 文档 ===
+PHASE3_COMPLETION_REPORT.md    (7.0 KB)
+FILE_MANIFEST_PHASE3.txt       (this file)
+
+=== Debug工具 ===
+debug_island.py                (120 lines)
+debug_island.png               (生成的可视化)
+
+=== 统计 ===
+总代码行数: ~1,385 lines
+核心模块: 6个
+测试用例: 10个
+API函数: 15个
+可视化工具: 4个
+
+=== 验收状态 ===
+[✓] 所有核心功能实现
+[✓] 所有测试通过
+[✓] API文档完整
+[✓] 性能满足要求
+[✓] 物理验证完成
+[✓] 准备集成到M2

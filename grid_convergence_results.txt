@@ -1,0 +1,58 @@
+============================================================
+Grid Convergence Study
+============================================================
+
+=== Running coarse grid: 32×64 ===
+Initial island width: 9.996892e-03
+  Step  20/100: w = 1.111505e-02
+  Step  40/100: w = 1.120405e-02
+  Step  60/100: w = 1.129361e-02
+  Step  80/100: w = 1.138379e-02
+  Step 100/100: w = 1.147463e-02
+Final island width: 1.147463e-02
+Growth: 14.78%
+
+=== Running baseline grid: 64×128 ===
+Initial island width: 9.999235e-03
+  Step  20/100: w = 1.033600e-02
+  Step  40/100: w = 1.042325e-02
+  Step  60/100: w = 1.051013e-02
+  Step  80/100: w = 1.059682e-02
+  Step 100/100: w = 1.068348e-02
+Final island width: 1.068348e-02
+Growth: 6.84%
+
+=== Running fine grid: 128×256 ===
+Initial island width: 9.999810e-03
+  Step  20/100: w = 1.014699e-02
+  Step  40/100: w = 1.023103e-02
+  Step  60/100: w = 1.031403e-02
+  Step  80/100: w = 1.039659e-02
+  Step 100/100: w = 1.047908e-02
+Final island width: 1.047908e-02
+Growth: 4.79%
+
+============================================================
+Convergence Analysis
+============================================================
+
+Final island widths:
+  Coarse   (32×64):   1.147463e-02
+  Baseline (64×128):  1.068348e-02
+  Fine     (128×256): 1.047908e-02
+
+Relative differences:
+  Coarse vs Baseline:  7.41%
+  Baseline vs Fine:    1.95%
+
+--- Convergence Assessment ---
+✅ Baseline (64×128) converged: <5% difference from fine grid
+✅ 64×128 is SUFFICIENT for production
+
+Richardson extrapolation:
+  Extrapolated w_true: 1.041094e-02
+  Baseline error:      2.62%
+
+============================================================
+Grid Convergence Study Complete
+============================================================

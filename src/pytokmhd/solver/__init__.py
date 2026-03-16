@@ -8,7 +8,7 @@ Core MHD evolution components:
 - poisson_solver: FFT-based Poisson solver
 - equilibrium_loader: PyTokEq equilibrium loading (Phase 2)
 - equilibrium_cache: Fast equilibrium caching (Phase 2)
-- initial_conditions: Equilibrium initialization (Phase 1 & 2)
+- initial_conditions: Equilibrium initialization (Phase 1 & 2 & 4)
 """
 
 from . import mhd_equations
@@ -19,6 +19,13 @@ from . import equilibrium_loader
 from . import equilibrium_cache
 from . import initial_conditions
 
+# Export commonly used functions
+from .initial_conditions import (
+    harris_sheet_initial,
+    pytokeq_initial,
+    setup_tearing_mode  # Phase 4
+)
+
 __all__ = [
     "mhd_equations",
     "time_integrator", 
@@ -27,4 +34,8 @@ __all__ = [
     "equilibrium_loader",
     "equilibrium_cache",
     "initial_conditions",
+    # Functions
+    "harris_sheet_initial",
+    "pytokeq_initial",
+    "setup_tearing_mode",
 ]

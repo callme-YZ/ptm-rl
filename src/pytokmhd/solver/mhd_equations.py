@@ -63,6 +63,14 @@ def laplacian_cylindrical(f, dr, dz, r_grid):
     df_dr = np.zeros_like(f)
     df_dr[1:-1, :] = (f[2:, :] - f[:-2, :]) / (2*dr)
     
+    # Inner boundary (r=r[0]): forward difference
+    d2f_dr2[0, :] = (f[0, :] - 2*f[1, :] + f[2, :]) / dr**2
+    df_dr[0, :] = (-3*f[0, :] + 4*f[1, :] - f[2, :]) / (2*dr)
+    
+    # Outer boundary (r=r[-1]): backward difference
+    d2f_dr2[-1, :] = (f[-3, :] - 2*f[-2, :] + f[-1, :]) / dr**2
+    df_dr[-1, :] = (3*f[-1, :] - 4*f[-2, :] + f[-3, :]) / (2*dr)
+    
     # ∂²f/∂z² (periodic in z)
     d2f_dz2 = np.zeros_like(f)
     d2f_dz2[:, 1:-1] = (f[:, 2:] - 2*f[:, 1:-1] + f[:, :-2]) / dz**2
@@ -73,13 +81,17 @@ def laplacian_cylindrical(f, dr, dz, r_grid):
     # Combine terms
     lap_f[1:-1, :] = d2f_dr2[1:-1, :] + (1.0 / r_grid[1:-1, :]) * df_dr[1:-1, :] + d2f_dz2[1:-1, :]
     
-    # Axis (r=0): use L'Hôpital's rule
+    # Axis (r→0): use L'Hôpital's rule if close to axis
     # lim_{r→0} (1/r)∂f/∂r = ∂²f/∂r² (by L'Hôpital)
     # So ∇²f|_{r=0} = 2∂²f/∂r² + ∂²f/∂z²
-    lap_f[0, :] = 2 * d2f_dr2[0, :] + d2f_dz2[0, :]
+    if r_grid[0, 0] < 0.01:  # Close to axis
+        lap_f[0, :] = 2 * d2f_dr2[0, :] + d2f_dz2[0, :]
+    else:
+        # Not at axis, use standard formula (derivatives already computed above)
+        lap_f[0, :] = d2f_dr2[0, :] + (1.0 / r_grid[0, :]) * df_dr[0, :] + d2f_dz2[0, :]
     
-    # Outer boundary (r=Lr): handled externally or set to zero
-    lap_f[-1, :] = 0.0
+    # Outer boundary (r=Lr): use standard formula (derivatives already computed above)
+    lap_f[-1, :] = d2f_dr2[-1, :] + (1.0 / r_grid[-1, :]) * df_dr[-1, :] + d2f_dz2[-1, :]
     
     return lap_f
 

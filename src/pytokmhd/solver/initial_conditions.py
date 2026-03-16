@@ -11,6 +11,7 @@ Author: 小P ⚛️
 import numpy as np
 from typing import Tuple, Dict, Optional
 from .equilibrium_cache import EquilibriumCache
+from ..diagnostics import find_rational_surface  # Phase 4
 
 
 def harris_sheet_initial(
@@ -264,3 +265,73 @@ def solovev_equilibrium(
                                           np.zeros_like(psi))
     
     return psi, omega
+
+
+def setup_tearing_mode(r_grid, z_grid, q_profile, r_values, m=2, n=1, w_0=0.01):
+    """
+    Quick setup for tearing mode initial condition.
+    
+    Wrapper for validation/testing.
+    
+    Parameters
+    ----------
+    r_grid, z_grid : np.ndarray
+        Coordinate meshes
+    q_profile : np.ndarray
+        Safety factor profile q(r)
+    r_values : np.ndarray
+        Radial values for q_profile
+    m, n : int
+        Mode numbers
+    w_0 : float
+        Initial island width
+    
+    Returns
+    -------
+    psi : np.ndarray
+        Initial poloidal flux
+    omega : np.ndarray
+        Initial vorticity
+    r_s : float
+        Rational surface radius
+    """
+    import numpy as np
+    
+    # Find rational surface
+    r_s = find_rational_surface(r_values, q_profile, m/n)
+    if r_s is None or np.isnan(r_s):
+        r_s = 0.5  # Default
+    
+    # Extract 1D arrays from meshgrid if needed
+    if r_grid.ndim == 2:
+        r_1d = r_grid[:, 0]  # First column (radial axis)
+        z_1d = z_grid[0, :]  # First row (vertical axis)
+    else:
+        r_1d = r_grid
+        z_1d = z_grid
+    
+    # Simple tearing mode perturbation
+    # ψ = ψ_eq + δψ
+    # Use Solovev as equilibrium
+    psi_eq, omega_eq = solovev_equilibrium(r_1d, z_1d)
+    
+    # Reconstruct 2D meshgrid if needed
+    if r_grid.ndim == 2:
+        R, Z = r_grid, z_grid
+    else:
+        R, Z = np.meshgrid(r_1d, z_1d, indexing='ij')
+    
+    # Add perturbation
+    theta = np.arctan2(Z, R - 1.0)  # Assume R0 = 1.0
+    delta_psi = w_0 * np.exp(-((R - 1.0 - r_s)**2) / (0.1**2)) * np.cos(m * theta)
+    
+    psi = psi_eq + delta_psi
+    
+    # Vorticity: ω = ∇²ψ
+    # Recompute omega from perturbed psi to maintain consistency
+    # This ensures ω = ∇²(ψ_eq + δψ) = ω_eq + ∇²(δψ)
+    omega = compute_equilibrium_vorticity(r_1d, z_1d, psi, 
+                                          np.zeros_like(psi), 
+                                          np.zeros_like(psi))
+    
+    return psi, omega, r_s
