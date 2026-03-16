@@ -13,11 +13,11 @@ from pathlib import Path
 # Add equilibrium to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'equilibrium'))
 
-from equilibrium.free_boundary_picard import (
+from pytokeq.equilibrium.boundary.free_boundary_picard import (
     solve_free_boundary_picard, FreeBoundaryResult
 )
-from equilibrium.free_boundary_constraints import CoilSet, IsofluxPair
-from equilibrium.fixed_boundary_picard import solve_picard_gs  # Use existing solver
+from pytokeq.equilibrium.free_boundary_constraints import CoilSet, IsofluxPair
+from pytokeq.equilibrium.boundary.fixed_boundary_picard import solve_picard_gs  # Use existing solver
 
 
 class Grid:

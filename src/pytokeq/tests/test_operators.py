@@ -16,7 +16,7 @@ from scipy.sparse.linalg import spsolve
 import sys
 sys.path.insert(0, '/Users/yz/.openclaw/workspace-xiaop')
 
-from reduced_mhd.core.operators import (
+from pytokeq.core.operators import (
     build_grad_shafranov_operator,
     apply_grad_shafranov_operator,
     poisson_bracket

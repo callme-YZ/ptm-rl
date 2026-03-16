@@ -8,8 +8,8 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-from equilibrium.picard_gs_solver import Grid, find_psi_axis
-from equilibrium.q_profile_exact import compute_q_profile
+from pytokeq.equilibrium.solver.picard_gs_solver import Grid, find_psi_axis
+from pytokeq.equilibrium.diagnostics.q_profile_exact import compute_q_profile
 
 
 def test_solovev_exact_q():

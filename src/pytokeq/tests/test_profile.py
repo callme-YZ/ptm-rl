@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, '..')
 
 import numpy as np
-from equilibrium.m3dc1_profile import M3DC1Profile
+from pytokeq.equilibrium.profiles.m3dc1_profile import M3DC1Profile
 
 profile = M3DC1Profile()
 

@@ -5,17 +5,17 @@ Provides fixed-boundary and free-boundary Grad-Shafranov solvers.
 """
 
 # Fixed-boundary solver
-from .picard_gs_solver import solve_picard_free_boundary
+from .solver.picard_gs_solver import solve_picard_free_boundary
 
 # Free-boundary components
-from .xpoint_finder import (
+from .diagnostics.xpoint_finder import (
     XPoint, 
     find_xpoints, 
     select_primary_xpoint, 
     is_xpoint_valid
 )
 
-from .free_boundary_constraints import (
+from .boundary.free_boundary_constraints import (
     CoilSet,
     IsofluxPair,
     build_constraint_matrix,
@@ -23,22 +23,22 @@ from .free_boundary_constraints import (
     optimize_coil_currents
 )
 
-from .free_boundary_picard import (
+from .boundary.free_boundary_picard import (
     solve_free_boundary_picard,
     FreeBoundaryResult
 )
 
-from .greens_function import (
+from .utils.greens_function import (
     greens_psi,
     greens_psi_gradient_R,
     greens_psi_gradient_Z
 )
 
-from .solovev_solution import SolovevSolution
+from .profiles.solovev_solution import SolovevSolution
 
 # q-profile calculation (PHYS-01 fix)
-from .flux_surface_tracer import FluxSurfaceTracer
-from .q_profile import QCalculator, integrate_along_surface, surface_average
+from .diagnostics.flux_surface_tracer import FluxSurfaceTracer
+from .diagnostics.q_profile import QCalculator, integrate_along_surface, surface_average
 
 __all__ = [
     # Fixed-boundary

@@ -16,7 +16,7 @@ Profile formula:
 
 import numpy as np
 from typing import Optional
-from .picard_gs_solver import ProfileModel, MU0
+from ..solver.picard_gs_solver import ProfileModel, MU0
 
 
 class M3DC1Profile(ProfileModel):

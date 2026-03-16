@@ -9,8 +9,8 @@ sys.path.insert(0, '..')
 
 import numpy as np
 
-from equilibrium.flux_surface_tracer import FluxSurfaceTracer
-from equilibrium.q_profile import QCalculator
+from pytokeq.equilibrium.diagnostics.flux_surface_tracer import FluxSurfaceTracer
+from pytokeq.equilibrium.diagnostics.q_profile import QCalculator
 
 
 class TestFluxSurfaceTracer:
@@ -214,7 +214,7 @@ class TestQCalculator:
 
 def test_integration_utilities():
     """Test surface integration utilities"""
-    from equilibrium.q_profile import integrate_along_surface, surface_average
+    from pytokeq.equilibrium.diagnostics.q_profile import integrate_along_surface, surface_average
     
     # Create circular path
     ntheta = 100

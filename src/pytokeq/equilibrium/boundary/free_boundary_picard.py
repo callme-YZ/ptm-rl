@@ -11,12 +11,12 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 
-from .xpoint_finder import find_xpoints, select_primary_xpoint, is_xpoint_valid, XPoint
+from ..diagnostics.xpoint_finder import find_xpoints, select_primary_xpoint, is_xpoint_valid, XPoint
 from .free_boundary_constraints import (
     CoilSet, IsofluxPair, build_constraint_matrix, 
     build_target_vector, optimize_coil_currents, check_constraint_matrix
 )
-from .greens_function import greens_psi
+from ..utils.greens_function import greens_psi
 
 
 @dataclass

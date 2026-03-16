@@ -13,7 +13,7 @@ import pytest
 from scipy.constants import mu_0 as MU0
 
 # Will import after Step 3 implementation
-# from equilibrium.picard_gs_solver import (
+# from pytokeq.equilibrium.solver.picard_gs_solver import (
 #     solve_picard_free_boundary, Grid, Constraints, ProfileModel, PicardResult
 # )
 

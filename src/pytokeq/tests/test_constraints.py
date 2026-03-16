@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 # Will import after Step 3
-# from equilibrium.picard_gs_solver import Constraints
+# from pytokeq.equilibrium.solver.picard_gs_solver import Constraints
 
 
 def test_constraints_xpoint_only():

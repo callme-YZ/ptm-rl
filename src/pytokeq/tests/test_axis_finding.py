@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 # Will import after Step 3
-# from equilibrium.picard_gs_solver import find_psi_axis, Grid
+# from pytokeq.equilibrium.solver.picard_gs_solver import find_psi_axis, Grid
 
 
 def test_axis_normal_case():

@@ -9,11 +9,11 @@ sys.path.insert(0, '..')
 
 import numpy as np
 import warnings
-from equilibrium.picard_gs_solver import (
+from pytokeq.equilibrium.solver.picard_gs_solver import (
     Grid, CoilSet, Constraints,
     solve_picard_free_boundary
 )
-from equilibrium.m3dc1_profile import M3DC1Profile
+from pytokeq.equilibrium.profiles.m3dc1_profile import M3DC1Profile
 
 
 def test_m3dc1_equilibrium():
@@ -156,7 +156,7 @@ def test_m3dc1_equilibrium():
         print(f"  ⚠️  Wrong flux direction!")
     
     # Check 4: Current density sign
-    from equilibrium.picard_gs_solver import compute_current_density
+    from pytokeq.equilibrium.solver.picard_gs_solver import compute_current_density
     Jtor_final = compute_current_density(result.psi, grid, profile, result.psi_axis)
     J_axis = Jtor_final[result.i_axis, result.j_axis]
     

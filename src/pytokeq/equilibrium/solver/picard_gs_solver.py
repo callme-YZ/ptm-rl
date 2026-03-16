@@ -9,7 +9,12 @@ Next: Step 2 (write tests) → Step 3 (implement)
 """
 
 import numpy as np
-from .picard_linear_solver_fixed_v2 import solve_gs_one_sweep_v2
+from .linear_solver_sparse import solve_gs_sparse
+from ..boundary.constraint_optimizer import (
+    optimize_coils_impl,
+    evaluate_constraints_impl,
+    compute_sensitivity_matrix_impl
+)
 from typing import Tuple, Optional, Callable, Dict
 from dataclasses import dataclass
 import warnings
@@ -280,6 +285,8 @@ class PicardResult:
     constraint_error: float
     i_axis: Optional[int] = None
     j_axis: Optional[int] = None
+    R_axis: Optional[float] = None
+    Z_axis: Optional[float] = None
     plasma_mask: Optional[np.ndarray] = None
 
 
@@ -616,12 +623,13 @@ def optimize_coils(
     I_coil: np.ndarray,
     coils: CoilSet,
     constraints: Constraints,
-    gamma: float = 1e-12
+    gamma: float = 1e-12,
+    grid: Grid = None
 ) -> Tuple[np.ndarray, float]:
     """
     Adjust coil currents to satisfy constraints
     
-    Implementation of Step 1 interface
+    Uses constraint_optimizer module
     """
     n_coils = len(I_coil)
     n_constraints = constraints.num_equations()
@@ -631,70 +639,26 @@ def optimize_coils(
         raise ValueError(
             f"UNDERDETERMINED SYSTEM!\n"
             f"n_constraints={n_constraints}, n_coils={n_coils}\n"
-            f"MORNING LESSON (2026-03-12): This causes ΔI~1A precision loss!\n"
-            f"\n"
-            f"For {n_coils} coils, need ≥{n_coils} constraint equations.\n"
-            f"Current configuration:\n"
-            f"  X-points: {len(constraints.xpoint)} (2 eq each)\n"
-            f"  Isoflux: {len(constraints.isoflux)} ({max(0, len(constraints.isoflux)-1)} eq)\n"
-            f"  I_p: {1 if constraints.Ip_target else 0} eq\n"
-            f"  Total: {n_constraints} equations\n"
-            f"\n"
-            f"Fix: Add more constraints!\n"
-            f"  Example: Add {n_coils - n_constraints} more isoflux points\n"
-            f"  Or: Add another X-point (2 equations)\n"
+            f"Need ≥{n_coils} constraints for {n_coils} coils!"
         )
     
-    # Compute sensitivity matrix A[i,j] = ∂constraint_i/∂I_j
-    # Using finite differences
-    A = compute_sensitivity_matrix(psi, Jtor, I_coil, coils, constraints)
+    # Use implemented optimizer
+    I_new, error = optimize_coils_impl(
+        psi=psi,
+        grid=grid,
+        Jtor=Jtor,
+        coil_R=coils.R,
+        coil_Z=coils.Z,
+        I_coil=I_coil,
+        xpoint=constraints.xpoint,
+        isoflux=constraints.isoflux,
+        Ip_target=constraints.Ip_target,
+        gamma=gamma,
+        dI=1.0  # Finite difference step [A]
+    )
     
-    # Evaluate current constraint error
-    b = evaluate_constraints(psi, constraints)
-    
-    # Tikhonov regularized least-squares
-    # minimize: ||A·ΔI - b||² + γ²||ΔI||²
-    # Solution: ΔI = (A^T A + γ²I)^{-1} A^T b
-    
-    ATA = A.T @ A
-    ATb = A.T @ b
-    
-    # Regularization (FreeGS uses gamma=1e-12!)
-    regularization = gamma**2 * np.eye(n_coils)
-    
-    # Solve
-    try:
-        delta_I = np.linalg.solve(ATA + regularization, ATb)
-    except np.linalg.LinAlgError:
-        # Fallback: Use lstsq
-        delta_I = np.linalg.lstsq(A, b, rcond=gamma)[0]
-    
-    # Check if ΔI is too small (morning lesson symptom!)
-    I_typical = np.abs(I_coil).mean()
-    if I_typical > 1e3:  # If coils > 1kA
-        if np.abs(delta_I).max() < 1.0:
-            warnings.warn(
-                f"ΔI very small: max={np.abs(delta_I).max():.2e} A\n"
-                f"For I_typical={I_typical:.1e} A, this is suspicious.\n"
-                f"Possible underdetermined system (morning lesson!)\n"
-                f"Check: n_constraints={n_constraints} >= n_coils={n_coils}?"
-            )
-    
-    # Apply update
-    I_coil_new = I_coil + delta_I
-    
-    # Compute constraint error
-    constraint_error = np.abs(b).max()
-    
-    return I_coil_new, constraint_error
+    return I_new, error
 
-
-# Constraint optimization (imported from constraint_optimizer.py)
-from .constraint_optimizer import (
-    evaluate_constraints_impl,
-    compute_sensitivity_matrix_impl,
-    optimize_coils_impl
-)
 
 def solve_picard_free_boundary(
     profile: ProfileModel,
@@ -737,12 +701,25 @@ def solve_picard_free_boundary(
         # Step 2: Compute J_phi from profile
         Jtor = compute_current_density(psi, grid, profile, psi_axis)
         
-        # Step 3: ONE sweep of linear G-S (not full convergence!)
-        psi_plasma = solve_gs_one_sweep_v2(psi, grid.R, grid.Z, Jtor, omega=1.5)
+        # Step 3: Solve linear G-S using scipy sparse (direct solver)
+        # Note: sparse solver uses psi as boundary condition
+        # For fixed boundary, need ψ_boundary = 0
+        psi_boundary = psi.copy()
+        psi_boundary[0, :] = 0.0   # R_min
+        psi_boundary[-1, :] = 0.0  # R_max
+        psi_boundary[:, 0] = 0.0   # Z_min
+        psi_boundary[:, -1] = 0.0  # Z_max
+        
+        psi_plasma = solve_gs_sparse(psi_boundary, grid.R, grid.Z, Jtor)
         
         # Step 4: Add coil contribution
-        psi_coils = compute_coil_flux(grid, coils, I_coil)
-        psi_new = psi_plasma + psi_coils
+        # CRITICAL: For fixed boundary (no coils), don't add vacuum field!
+        if len(coils.I) > 0:
+            psi_coils = compute_coil_flux(grid, coils, I_coil)
+            psi_new = psi_plasma + psi_coils
+        else:
+            # Fixed boundary: psi_plasma already has ψ=0 at boundary
+            psi_new = psi_plasma
         
         # Step 5: Optimize coil currents (if free-boundary)
         if len(coils.I) > 0 and constraints.num_equations() > 0:
@@ -804,6 +781,8 @@ def solve_picard_free_boundary(
         constraint_error=constraint_error,
         i_axis=i_axis,
         j_axis=j_axis,
+        R_axis=grid.R[i_axis, j_axis],
+        Z_axis=grid.Z[i_axis, j_axis],
         plasma_mask=plasma_mask
     )
 
@@ -827,11 +806,19 @@ def initial_guess_vacuum(
     psi = np.zeros_like(grid.R)
     
     if len(coils.R) == 0:
-        # No coils: Use simple parabolic initial guess
-        # ψ = -(R-R0)² - (Z-Z0)²
+        # No coils: Use parabolic initial guess with realistic magnitude
+        # ψ = -ψ0 × [(R-R0)²/a² + Z²/b²]
+        # where ψ0 ~ 1 Wb (typical tokamak scale)
         R0 = (grid.R.min() + grid.R.max()) / 2
-        Z0 = (grid.Z.min() + grid.Z.max()) / 2
-        psi = -((grid.R - R0)**2 + (grid.Z - Z0)**2)
+        Z0 = 0.0  # Assume symmetric
+        a = (grid.R.max() - grid.R.min()) / 2  # Minor radius
+        b = (grid.Z.max() - grid.Z.min()) / 2  # Half-height
+        
+        # Typical ψ_axis ~ 1 Wb for 1T toroidal field
+        psi0 = 1.0
+        
+        # Parabolic profile (maximum at center)
+        psi = -psi0 * (((grid.R - R0)/a)**2 + ((grid.Z - Z0)/b)**2)
         return psi
     
     for i, (Rc, Zc) in enumerate(zip(coils.R, coils.Z)):
@@ -935,6 +922,10 @@ def compute_current_density(
     Compute J_φ from profile
     
     J_φ = -R p'(ψ) - FF'(ψ)/μ₀R
+    
+    NOTE: ProfileModel.pprime() and .ffprime() are assumed to return
+    absolute derivatives (dp/dψ, dFF'/dψ) with consistent units.
+    The profile implementation handles normalization internally.
     """
     # Normalize psi
     psi_edge = psi[0, :].mean()

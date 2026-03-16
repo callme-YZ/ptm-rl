@@ -10,8 +10,8 @@ import numpy as np
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
-from .greens_function import greens_psi, greens_psi_gradient_R, greens_psi_gradient_Z
-from .xpoint_finder import XPoint
+from ..utils.greens_function import greens_psi, greens_psi_gradient_R, greens_psi_gradient_Z
+from ..diagnostics.xpoint_finder import XPoint
 
 
 @dataclass

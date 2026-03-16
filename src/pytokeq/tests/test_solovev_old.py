@@ -16,7 +16,7 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-from equilibrium.picard_gs_solver import (
+from pytokeq.equilibrium.solver.picard_gs_solver import (
     Grid, ProfileModel, solve_picard_free_boundary,
     find_psi_axis, compute_q_cylindrical, MU0
 )

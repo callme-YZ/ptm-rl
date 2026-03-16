@@ -10,12 +10,12 @@ sys.path.insert(0, '..')
 
 import numpy as np
 
-from equilibrium.picard_gs_solver import (
+from pytokeq.equilibrium.solver.picard_gs_solver import (
     Grid, CoilSet, Constraints,
     solve_picard_free_boundary
 )
-from equilibrium.m3dc1_profile import M3DC1Profile
-from equilibrium.q_profile import QCalculator
+from pytokeq.equilibrium.profiles.m3dc1_profile import M3DC1Profile
+from pytokeq.equilibrium.diagnostics.q_profile import QCalculator
 
 # Setup
 R_min, R_max = 1.0, 2.0

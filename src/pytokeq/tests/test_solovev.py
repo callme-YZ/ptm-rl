@@ -17,8 +17,8 @@ import numpy as np
 import sys
 sys.path.insert(0, '..')
 
-from equilibrium.picard_gs_solver import Grid, find_psi_axis, MU0
-from equilibrium.q_profile_exact import compute_q_profile
+from pytokeq.equilibrium.solver.picard_gs_solver import Grid, find_psi_axis, MU0
+from pytokeq.equilibrium.diagnostics.q_profile_exact import compute_q_profile
 
 
 def solovev_analytical(R: np.ndarray, Z: np.ndarray, R0: float = 1.5, A: float = 1.0):
