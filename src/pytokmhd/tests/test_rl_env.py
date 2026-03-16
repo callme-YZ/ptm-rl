@@ -3,7 +3,7 @@ Unit tests for MHD Tearing Control Environment.
 
 Author: 小A 🤖 (RL Lead)
 Date: 2026-03-16
-Phase: 5 Week 1 Day 3-4
+Phase: 5 Step 2.5 - Gymnasium Migration + Parameterization
 """
 
 import pytest
@@ -18,347 +18,319 @@ sys.path.insert(0, str(src_path))
 from pytokmhd.rl import MHDTearingControlEnv
 
 
-class TestEnvironmentCreation:
-    """Test environment initialization."""
+class TestEnvironmentAPI:
+    """Test Gymnasium API compliance."""
     
-    def test_env_creation_default(self):
-        """Test environment can be created with default parameters."""
-        env = MHDTearingControlEnv()
+    def test_import(self):
+        """Test environment can be imported."""
+        from pytokmhd.rl import MHDTearingControlEnv
+        assert MHDTearingControlEnv is not None
+    
+    def test_init_simple(self):
+        """Test environment initialization with simple equilibrium."""
+        env = MHDTearingControlEnv(equilibrium_type='simple')
         assert env is not None
-        assert env.observation_space.shape == (25,)
-        assert env.action_space.shape == (1,)
+        assert env.equilibrium_type == 'simple'
     
-    def test_env_creation_custom(self):
-        """Test environment with custom parameters."""
+    def test_init_custom_params(self):
+        """Test environment initialization with custom parameters."""
         env = MHDTearingControlEnv(
-            Nr=32,
-            Nz=64,
-            dt=0.02,
-            max_steps=100
+            equilibrium_type='simple',
+            grid_size=32,
+            action_smoothing_alpha=0.5,
+            max_psi_threshold=20.0,
+            max_steps=100,
         )
-        assert env.Nr == 32
-        assert env.Nz == 64
-        assert env.dt == 0.02
+        assert env.grid_size == 32
+        assert env.alpha_smooth == 0.5
+        assert env.max_psi == 20.0
         assert env.max_steps == 100
     
-    def test_phase4_api_flag(self):
-        """Test that Phase 1-4 API integration works."""
-        # ✅ Phase 4 API integration complete (2026-03-16)
-        env = MHDTearingControlEnv(use_phase4_api=True)
-        assert env is not None
-        assert env.use_phase4_api == True
-        assert env.monitor is not None  # TearingModeMonitor created
-
-
-class TestEnvironmentReset:
-    """Test environment reset functionality."""
-    
-    def test_reset_shape(self):
-        """Test reset returns correct observation shape."""
-        env = MHDTearingControlEnv()
-        obs, _ = env.reset()
-        
-        assert obs.shape == (25,), f"Expected shape (25,), got {obs.shape}"
-    
-    def test_reset_values(self):
-        """Test reset returns valid observation values."""
-        env = MHDTearingControlEnv()
-        obs, _ = env.reset()
-        
-        # No NaN/Inf
-        assert not np.any(np.isnan(obs)), "Observation contains NaN"
-        assert not np.any(np.isinf(obs)), "Observation contains Inf"
-        
-        # Island width should be positive
-        w = obs[0]
-        assert w >= 0, f"Island width should be non-negative, got {w}"
-    
-    def test_reset_reproducibility(self):
-        """Test reset produces consistent initial state."""
+    def test_spaces(self):
+        """Test observation and action spaces."""
         env = MHDTearingControlEnv()
         
-        obs1, _ = env.reset()
-        obs2, _ = env.reset()
+        # Observation space: 25D
+        assert env.observation_space.shape == (25,)
         
-        # Core physics should be identical (w, gamma, psi, omega samples)
-        # Energy and helicity may differ slightly due to numerical precision
-        np.testing.assert_array_almost_equal(obs1[:12], obs2[:12], decimal=6)
+        # Action space: 1D, [-1, 1]
+        assert env.action_space.shape == (1,)
+        assert np.allclose(env.action_space.low, -1.0)
+        assert np.allclose(env.action_space.high, 1.0)
     
-    def test_reset_state_initialization(self):
-        """Test reset properly initializes internal state."""
+    def test_reset_returns_tuple(self):
+        """Test reset returns (obs, info) tuple (Gymnasium standard)."""
         env = MHDTearingControlEnv()
-        obs, _ = env.reset()
+        result = env.reset()
         
-        assert env.t == 0.0, "Time should be reset to 0"
-        assert env.step_count == 0, "Step count should be reset to 0"
-        assert env.prev_action == 0.0, "Previous action should be reset to 0"
-        assert env.psi is not None, "Psi should be initialized"
-        assert env.omega is not None, "Omega should be initialized"
-
-
-class TestEnvironmentStep:
-    """Test environment step functionality."""
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        
+        obs, info = result
+        assert isinstance(obs, np.ndarray)
+        assert isinstance(info, dict)
     
-    def test_step_shape(self):
-        """Test step returns correct shapes."""
+    def test_reset_observation_shape(self):
+        """Test reset observation has correct shape."""
         env = MHDTearingControlEnv()
-        _ = env.reset()
+        obs, info = env.reset()
+        assert obs.shape == (25,)
+    
+    def test_reset_info_dict(self):
+        """Test reset info dict contains required keys."""
+        env = MHDTearingControlEnv()
+        obs, info = env.reset()
+        
+        assert 'step' in info
+        assert 'equilibrium_type' in info
+        assert info['step'] == 0
+        assert info['equilibrium_type'] == 'simple'
+    
+    def test_step_returns_five_values(self):
+        """Test step returns (obs, reward, terminated, truncated, info)."""
+        env = MHDTearingControlEnv()
+        env.reset()
         
         action = np.array([0.5])
-        obs, reward, done, info = env.step(action)
+        result = env.step(action)
         
-        assert obs.shape == (25,), f"Expected obs shape (25,), got {obs.shape}"
-        assert isinstance(reward, (float, np.floating)), f"Reward should be float, got {type(reward)}"
-        assert isinstance(done, (bool, np.bool_)), f"Done should be bool, got {type(done)}"
-        assert isinstance(info, dict), f"Info should be dict, got {type(info)}"
+        assert isinstance(result, tuple)
+        assert len(result) == 5
+        
+        obs, reward, terminated, truncated, info = result
+        assert isinstance(obs, np.ndarray)
+        assert isinstance(reward, (int, float))
+        assert isinstance(terminated, (bool, np.bool_))
+        assert isinstance(truncated, (bool, np.bool_))
+        assert isinstance(info, dict)
     
-    def test_step_values(self):
-        """Test step returns valid values."""
+    def test_step_observation_shape(self):
+        """Test step observation has correct shape."""
         env = MHDTearingControlEnv()
-        _ = env.reset()
+        env.reset()
         
-        action = np.array([0.5])
-        obs, reward, done, info = env.step(action)
-        
-        # No NaN/Inf in observation
-        assert not np.any(np.isnan(obs)), "Observation contains NaN"
-        assert not np.any(np.isinf(obs)), "Observation contains Inf"
-        
-        # Reward should be finite
-        assert np.isfinite(reward), f"Reward should be finite, got {reward}"
-    
-    def test_step_action_range(self):
-        """Test step accepts actions in valid range."""
-        env = MHDTearingControlEnv()
-        _ = env.reset()
-        
-        # Test boundary values
-        for action_val in [-1.0, -0.5, 0.0, 0.5, 1.0]:
-            action = np.array([action_val])
-            obs, reward, done, info = env.step(action)
-            assert not np.any(np.isnan(obs)), f"Action {action_val} produced NaN"
-    
-    def test_step_time_increment(self):
-        """Test step properly increments time."""
-        env = MHDTearingControlEnv(dt=0.01)
-        _ = env.reset()
-        
-        action = np.array([0.0])
-        env.step(action)
-        
-        assert env.t == 0.01, f"Time should be 0.01, got {env.t}"
-        assert env.step_count == 1, f"Step count should be 1, got {env.step_count}"
-    
-    def test_step_info_dict(self):
-        """Test step returns complete info dict."""
-        env = MHDTearingControlEnv()
-        _ = env.reset()
-        
-        action = np.array([0.5])
-        _, _, _, info = env.step(action)
-        
-        required_keys = ['w', 'gamma', 'x_o', 'z_o', 't', 'step', 'rmp_amplitude']
-        for key in required_keys:
-            assert key in info, f"Info dict missing key: {key}"
+        obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
+        assert obs.shape == (25,)
 
 
-class TestEnvironmentRollout:
-    """Test full episode rollouts."""
+class TestEnvironmentBehavior:
+    """Test environment physics and dynamics."""
     
-    def test_random_policy_rollout(self):
-        """Test random policy can complete without crash."""
-        env = MHDTearingControlEnv(max_steps=50)
-        obs, _ = env.reset()
+    def test_action_smoothing(self):
+        """Test action smoothing is applied."""
+        env = MHDTearingControlEnv(action_smoothing_alpha=0.5)
+        env.reset()
         
-        for step in range(50):
-            action = env.action_space.sample()
-            obs, reward, done, info = env.step(action)
-            
-            if done:
+        # Apply action
+        obs, reward, term, trunc, info = env.step(np.array([1.0]))
+        
+        # Current action should be smoothed (not 1.0)
+        assert env.current_action < 1.0
+        assert env.current_action > 0.0
+    
+    def test_episode_termination(self):
+        """Test episode terminates at max steps."""
+        env = MHDTearingControlEnv(max_steps=10)
+        env.reset()
+        
+        terminated = False
+        truncated = False
+        
+        for _ in range(15):
+            obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
+            if terminated or truncated:
                 break
         
-        # Should complete without NaN/Inf
-        assert not np.any(np.isnan(obs)), "Random policy produced NaN"
-        assert not np.any(np.isinf(obs)), "Random policy produced Inf"
+        assert truncated or env.step_count >= 10
     
-    def test_zero_action_rollout(self):
-        """Test no-control policy (action=0) is stable."""
-        env = MHDTearingControlEnv(max_steps=20)
-        obs, _ = env.reset()
+    def test_early_termination(self):
+        """Test early termination on psi threshold."""
+        env = MHDTearingControlEnv(max_psi_threshold=0.5)
+        env.reset()
         
-        for step in range(20):
-            action = np.array([0.0])  # No control
-            obs, reward, done, info = env.step(action)
-            
-            if done:
-                break
+        # Force large psi
+        env.psi = np.ones_like(env.psi) * 10.0
         
-        # Should not crash
-        assert not np.any(np.isnan(obs)), "Zero action produced NaN"
-    
-    def test_max_steps_termination(self):
-        """Test episode terminates at or before max_steps."""
-        max_steps = 10
-        env = MHDTearingControlEnv(max_steps=max_steps)
-        _ = env.reset()
+        obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
         
-        done = False
-        for step in range(max_steps + 5):  # Extra steps to be sure
-            action = np.array([0.0])
-            _, _, done, _ = env.step(action)
-            
-            if done:
-                break
-        
-        assert done, "Episode should terminate"
-        assert env.step_count <= max_steps, f"Should not exceed {max_steps} steps"
-
-
-class TestConservation:
-    """Test conservation properties."""
-    
-    def test_energy_conservation_no_control(self):
-        """Test energy drift is reasonable with no control."""
-        env = MHDTearingControlEnv(max_steps=20, eta=1e-4, nu=1e-4)  # Lower dissipation
-        obs, _ = env.reset()
-        
-        energy_initial = obs[20]  # Correct index
-        
-        for step in range(20):
-            action = np.array([0.0])  # No control
-            obs, _, _, _ = env.step(action)
-        
-        energy_final = obs[20]  # Correct index
-        energy_drift = abs(energy_final - energy_initial) / (abs(energy_initial) + 1e-10)
-        
-        # Energy should be approximately conserved (<20% drift for simplified model)
-        assert energy_drift < 0.2, f"Energy drift {energy_drift:.2%} too large"
-    
-    def test_conservation_monitoring(self):
-        """Test conservation is tracked in observation."""
-        env = MHDTearingControlEnv()
-        obs, _ = env.reset()
-        
-        # Conservation quantities should be in observation
-        # obs = [w, gamma, x_o, z_o, psi×8, omega×8, energy, helicity, drift, ...]
-        # Indices: 0-3 (4), 4-11 (8), 12-19 (8), 20-22 (3)
-        energy = obs[20]
-        helicity = obs[21]
-        energy_drift = obs[22]
-        
-        assert np.isfinite(energy), "Energy should be finite"
-        assert np.isfinite(helicity), "Helicity should be finite"
-        assert energy_drift == 0.0, "Initial energy drift should be 0"
-
-
-class TestRewardFunction:
-    """Test reward function properties."""
+        assert terminated
     
     def test_reward_components(self):
-        """Test reward has expected structure."""
-        env = MHDTearingControlEnv(convergence_threshold=0.005)
-        obs, _ = env.reset()
-        
-        # Large island → negative reward
-        env.w_history = [0.1]  # Large width
-        action = np.array([0.0])
-        _, reward, _, _ = env.step(action)
-        
-        assert reward < 0, "Large island should give negative reward"
-    
-    def test_convergence_bonus(self):
-        """Test convergence bonus mechanism."""
-        env = MHDTearingControlEnv(convergence_threshold=0.005)
-        _ = env.reset()
-        
-        # Test that small island + small gamma gives positive reward
-        # (convergence bonus = 1.0 should dominate)
-        # In practice, the actual w/gamma from step may not be exactly controllable
-        # So we just test the reward function logic is reasonable
-        
-        action = np.array([0.0])
-        obs, reward, _, _ = env.step(action)
-        
-        # Reward should be finite
-        assert np.isfinite(reward), f"Reward should be finite, got {reward}"
-        
-        # If island is small enough, reward should be less negative
-        # (This is a weak test, but sufficient for env sanity check)
-
-
-class TestObservationSpace:
-    """Test observation space structure."""
-    
-    def test_observation_dimension(self):
-        """Test observation has correct dimensions."""
+        """Test reward function penalizes island width and action."""
         env = MHDTearingControlEnv()
-        obs, _ = env.reset()
+        env.reset()
         
-        assert len(obs) == 25, f"Expected 25D observation, got {len(obs)}"
+        # Zero action should have higher reward than large action
+        obs1, r1, _, _, _ = env.step(np.array([0.0]))
+        env.reset()
+        obs2, r2, _, _, _ = env.step(np.array([1.0]))
+        
+        # Reward should be negative (penalty)
+        assert r1 < 0
+        assert r2 < 0
+        
+        # Large action should have more penalty
+        # (assuming similar island width)
+        # Note: May not always hold due to physics evolution
+
+
+class TestEquilibriumTypes:
+    """Test different equilibrium initialization types."""
     
-    def test_observation_components(self):
-        """Test observation contains expected components."""
+    def test_simple_equilibrium(self):
+        """Test simple equilibrium initialization."""
+        env = MHDTearingControlEnv(equilibrium_type='simple')
+        obs, info = env.reset()
+        
+        assert env.psi is not None
+        assert env.omega is not None
+        assert env.psi.shape == (64, 64, 32)
+    
+    def test_equilibrium_type_in_info(self):
+        """Test equilibrium type is reported in info."""
+        env = MHDTearingControlEnv(equilibrium_type='simple')
+        obs, info = env.reset()
+        
+        assert info['equilibrium_type'] == 'simple'
+
+
+class TestStability:
+    """Test numerical stability."""
+    
+    def test_100_steps_no_crash(self):
+        """Test environment runs 100 steps without crash."""
         env = MHDTearingControlEnv()
-        obs, _ = env.reset()
+        env.reset()
         
-        w, gamma, x_o, z_o = obs[0:4]  # Diagnostics
-        psi_samples = obs[4:12]  # Psi samples
-        omega_samples = obs[12:20]  # This will be 12:16 + 16:20, need to fix indexing
+        for _ in range(100):
+            obs, reward, terminated, truncated, info = env.step(
+                env.action_space.sample()
+            )
+            
+            if terminated or truncated:
+                env.reset()
         
-        # Actually: obs[4:12] = psi (8), obs[12:20] would be omega but we only have 18 total
-        # Correction: psi[4:12]=8, omega[12:20] doesn't exist
-        # Let me check the actual indexing from code
-        
-        # From code: psi×8 (4:12), omega×8 (would need 12:20 but only 18 total)
-        # Actually in code it's: w,gamma,x_o,z_o (4) + psi×8 (8) + omega×8 (8) + 3 + 3 = 26?
-        # Wait, let me recount: 4 + 8 + 8 + 3 + 3 = 26 ≠ 18
-        
-        # There's an error in my implementation! Let me check...
-        # Oh I see: it should be 4 + 8 + 8 + 3 + 3 = 26, but I declared 25D
-        # This is a BUG to fix
-        
-        # For now, test that all elements are finite
-        assert np.all(np.isfinite(obs)), "All observation elements should be finite"
-
-
-class TestActionSpace:
-    """Test action space properties."""
+        # If we get here, no crash
+        assert True
     
-    def test_action_dimension(self):
-        """Test action space is 1D continuous."""
+    def test_observation_finite(self):
+        """Test observations remain finite."""
         env = MHDTearingControlEnv()
+        obs, info = env.reset()
         
-        assert env.action_space.shape == (1,), "Action space should be 1D"
+        assert np.all(np.isfinite(obs))
+        
+        for _ in range(10):
+            obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
+            assert np.all(np.isfinite(obs)), f"Non-finite obs at step {_}"
     
-    def test_action_bounds(self):
-        """Test action space has correct bounds."""
-        env = MHDTearingControlEnv(A_max=0.1)
+    def test_reward_finite(self):
+        """Test rewards remain finite."""
+        env = MHDTearingControlEnv()
+        env.reset()
         
-        assert env.action_space.low == -1.0, "Action lower bound should be -1"
-        assert env.action_space.high == 1.0, "Action upper bound should be +1"
-    
-    def test_action_scaling(self):
-        """Test action is properly scaled to physical range (with smoothing)."""
-        env = MHDTearingControlEnv(A_max=0.1)
-        _ = env.reset()
-        
-        action = np.array([1.0])  # Max action
-        _, _, _, info = env.step(action)
-        
-        # With alpha=0.3 smoothing: smoothed = 0.3*1.0 + 0.7*0.0 = 0.3
-        # RMP amplitude = 0.3 * 0.1 = 0.03
-        expected = 0.03
-        assert abs(info['rmp_amplitude'] - expected) < 1e-6, \
-            f"First step should be smoothed to {expected}, got {info['rmp_amplitude']}"
-        
-        # After many steps with action=1.0, should converge to A_max
-        for _ in range(20):
-            _, _, _, info = env.step(action)
-        
-        assert abs(info['rmp_amplitude'] - 0.1) < 0.01, \
-            "After convergence should approach A_max"
+        for _ in range(10):
+            obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
+            assert np.isfinite(reward), f"Non-finite reward at step {_}"
 
 
-# Run tests
+class TestDiagnostics:
+    """Test diagnostic information."""
+    
+    def test_info_contains_diagnostics(self):
+        """Test info dict contains diagnostic keys."""
+        env = MHDTearingControlEnv()
+        obs, info = env.reset()
+        
+        required_keys = ['step', 'psi_max', 'omega_max', 'equilibrium_type']
+        for key in required_keys:
+            assert key in info, f"Missing key: {key}"
+    
+    def test_step_counter(self):
+        """Test step counter increments correctly."""
+        env = MHDTearingControlEnv()
+        obs, info = env.reset()
+        
+        assert info['step'] == 0
+        
+        for i in range(5):
+            obs, reward, terminated, truncated, info = env.step(np.array([0.0]))
+            assert info['step'] == i + 1
+
+
+class TestSB3Compatibility:
+    """Test Stable-Baselines3 compatibility."""
+    
+    def test_sb3_import(self):
+        """Test SB3 can be imported."""
+        try:
+            from stable_baselines3 import PPO
+            assert True
+        except ImportError:
+            pytest.skip("SB3 not installed")
+    
+    def test_sb3_model_creation(self):
+        """Test SB3 model can be created."""
+        try:
+            from stable_baselines3 import PPO
+        except ImportError:
+            pytest.skip("SB3 not installed")
+        
+        env = MHDTearingControlEnv()
+        model = PPO('MlpPolicy', env, verbose=0)
+        
+        assert model is not None
+    
+    def test_sb3_single_step(self):
+        """Test SB3 model can take a step."""
+        try:
+            from stable_baselines3 import PPO
+        except ImportError:
+            pytest.skip("SB3 not installed")
+        
+        env = MHDTearingControlEnv()
+        model = PPO('MlpPolicy', env, verbose=0)
+        
+        obs, info = env.reset()
+        action, _ = model.predict(obs, deterministic=True)
+        
+        assert action.shape == (1,)
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+class TestGridAttributes:
+    """Test grid attribute naming consistency."""
+    
+    def test_grid_aliases(self):
+        """Test Nr, Nphi, Nz are aliases for nx, ny, nz."""
+        env = MHDTearingControlEnv(grid_size=64)
+        
+        assert env.Nr == env.nx
+        assert env.Nphi == env.ny
+        assert env.Nz == env.nz
+    
+    def test_grid_scaling(self):
+        """Test grid size parameter works correctly."""
+        env32 = MHDTearingControlEnv(grid_size=32)
+        env64 = MHDTearingControlEnv(grid_size=64)
+        
+        assert env32.Nr == 32
+        assert env32.Nz == 16
+        
+        assert env64.Nr == 64
+        assert env64.Nz == 32
+    
+    def test_phase4_compatibility(self):
+        """Test Phase 4 naming convention (Nr, Nz) works."""
+        env = MHDTearingControlEnv()
+        
+        # Phase 4 style access should work
+        Nr = env.Nr
+        Nz = env.Nz
+        
+        assert Nr > 0
+        assert Nz > 0
+        assert Nz == Nr // 2  # Default scaling

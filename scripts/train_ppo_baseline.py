@@ -1,160 +1,179 @@
 #!/usr/bin/env python3
 """
-PPO Baseline Training - Phase 5 Step 2
+PPO Baseline Training for MHD Tearing Mode Control.
 
-Train PPO agent on MHD tearing mode control environment.
-Baseline: gamma=0.95, 10k timesteps pilot run.
+Usage:
+    python scripts/train_ppo_baseline.py [--equilibrium simple|solovev] [--total-timesteps N]
 
-Author: 小A 🤖 (RL Lead)
+Author: 小A 🤖
 Date: 2026-03-16
+Status: Phase 5 Step 2.5 - Gymnasium Migration + Parameterization
 """
 
+import argparse
 import sys
-from pathlib import Path
+import os
 
 # Add src to path
-src_path = Path(__file__).parent.parent / "src"
-sys.path.insert(0, str(src_path))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+from pytokmhd.rl import MHDTearingControlEnv
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
-from pytokmhd.rl import MHDTearingControlEnv, SB3CompatWrapper
-import numpy as np
+from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 
-def main():
+def train_ppo_baseline(
+    equilibrium_type='simple',
+    total_timesteps=10000,
+    gamma=0.95,
+    learning_rate=3e-4,
+    batch_size=256,
+    checkpoint_freq=5000,
+    log_dir='logs/ppo_baseline',
+    model_save_path='models/ppo_baseline_10k.zip',
+):
+    """
+    Train PPO baseline on MHD tearing mode control.
+    
+    Parameters
+    ----------
+    equilibrium_type : {'simple', 'solovev'}
+        Equilibrium initialization type
+    total_timesteps : int
+        Total training timesteps
+    gamma : float
+        Discount factor
+    learning_rate : float
+        PPO learning rate
+    batch_size : int
+        Minibatch size
+    checkpoint_freq : int
+        Checkpoint save frequency
+    log_dir : str
+        Tensorboard log directory
+    model_save_path : str
+        Final model save path
+    """
     print("=" * 60)
-    print("Phase 5 Step 2: PPO Baseline Training")
+    print("PPO Baseline Training - MHD Tearing Mode Control")
+    print("=" * 60)
+    print(f"Equilibrium type: {equilibrium_type}")
+    print(f"Total timesteps: {total_timesteps:,}")
+    print(f"Gamma: {gamma}")
+    print(f"Learning rate: {learning_rate}")
+    print(f"Batch size: {batch_size}")
     print("=" * 60)
     
-    # Create environment
-    print("\n[1/4] Creating environment...")
-    base_env = MHDTearingControlEnv(
-        Nr=64,
-        Nz=128,
-        dt=0.01,
-        eta=1e-3,
-        nu=1e-3,
+    # Create environment with configuration
+    env = MHDTearingControlEnv(
+        equilibrium_type=equilibrium_type,
+        grid_size=64,
+        action_smoothing_alpha=0.3,
+        max_psi_threshold=10.0,
         max_steps=200,
-        w_0=0.01,  # Start with small initial island
-        use_phase4_api=True  # Use real MHD solver
     )
-    # Wrap for SB3 compatibility (reset() returns obs only)
-    env = SB3CompatWrapper(base_env)
-    print(f"✅ Environment created (with SB3 wrapper)")
-    print(f"   Observation space: {env.observation_space.shape}")
-    print(f"   Action space: {env.action_space.shape}")
     
-    # Test environment
-    print("\n[2/4] Testing environment...")
-    obs = env.reset()
-    print(f"✅ Reset successful")
-    print(f"   Initial island width: {obs[0]:.6f}")
-    print(f"   Diagnostics available: {env.last_info['diagnostics'] is not None}")
+    # Wrap for SB3
+    env = DummyVecEnv([lambda: env])
     
     # Create PPO model
-    print("\n[3/4] Creating PPO model...")
     model = PPO(
         'MlpPolicy',
         env,
-        learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=256,
-        gamma=0.95,  # Baseline discount factor
-        n_epochs=10,
-        clip_range=0.2,
-        ent_coef=0.01,  # Encourage exploration
-        vf_coef=0.5,
-        max_grad_norm=0.5,
-        tensorboard_log="./logs/ppo_baseline/",
+        gamma=gamma,
+        learning_rate=learning_rate,
+        batch_size=batch_size,
         verbose=1,
-        device='auto'  # Use GPU if available
+        tensorboard_log=log_dir,
     )
-    print(f"✅ PPO model created")
-    print(f"   Learning rate: {model.learning_rate}")
-    print(f"   Gamma: {model.gamma}")
-    print(f"   Batch size: {model.batch_size}")
     
-    # Setup callbacks
+    # Setup checkpoints
     checkpoint_callback = CheckpointCallback(
-        save_freq=5000,  # Save every 5k steps
+        save_freq=checkpoint_freq,
         save_path='./checkpoints/ppo_baseline/',
-        name_prefix='ppo_model',
-        verbose=1
+        name_prefix='ppo_model'
     )
     
     # Train
-    print("\n[4/4] Training PPO (10k timesteps pilot)...")
-    print("Monitor progress: tensorboard --logdir logs/ppo_baseline")
-    print("-" * 60)
+    print("\n[Training] Starting PPO training...")
+    model.learn(
+        total_timesteps=total_timesteps,
+        callback=checkpoint_callback,
+        progress_bar=True
+    )
     
-    try:
-        model.learn(
-            total_timesteps=10000,
-            callback=checkpoint_callback,
-            tb_log_name="gamma_0.95",
-            progress_bar=True
-        )
-        
-        print("\n" + "=" * 60)
-        print("✅ Training completed!")
-        print("=" * 60)
-        
-        # Save final model
-        model_path = "./models/ppo_baseline_10k"
-        model.save(model_path)
-        print(f"\n✅ Model saved: {model_path}.zip")
-        
-        # Evaluation
-        print("\n[Evaluation] Testing trained policy...")
-        obs = env.reset()
-        episode_reward = 0
-        episode_length = 0
-        w_trajectory = [obs[0]]
-        
-        done = False
-        while not done and episode_length < 200:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, info = env.step(action)
-            episode_reward += reward
-            episode_length += 1
-            w_trajectory.append(obs[0])
-        
-        print(f"\n✅ Evaluation episode:")
-        print(f"   Total reward: {episode_reward:.2f}")
-        print(f"   Episode length: {episode_length}")
-        print(f"   Initial island width: {w_trajectory[0]:.6f}")
-        print(f"   Final island width: {w_trajectory[-1]:.6f}")
-        print(f"   Width change: {(w_trajectory[-1] - w_trajectory[0]):.6f}")
-        
-        # Check if learning occurred
-        if episode_reward > -200:
-            print("\n✅ Policy shows learning! (reward > -200)")
-        else:
-            print("\n⚠️  Policy may need more training (reward ≤ -200)")
-        
-        print("\n" + "=" * 60)
-        print("Phase 5 Step 2 (Baseline) COMPLETE")
-        print("=" * 60)
-        print("\nNext steps:")
-        print("1. Review tensorboard logs: tensorboard --logdir logs/ppo_baseline")
-        print("2. Run gamma tuning: python scripts/train_ppo_gamma_sweep.py")
-        print("3. Proceed to 100k full training")
-        
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Training interrupted by user")
-        print("Saving current model...")
-        model.save("./models/ppo_baseline_interrupted")
-        print("✅ Model saved: ./models/ppo_baseline_interrupted.zip")
+    # Save final model
+    print(f"\n✅ Model saved: {model_save_path}")
+    model.save(model_save_path)
     
-    except Exception as e:
-        print(f"\n\n❌ Training failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+    # Evaluate
+    print("\n[Evaluation] Testing trained policy...")
+    obs = env.reset()
+    episode_reward = 0
+    episode_length = 0
     
-    return 0
+    for _ in range(200):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        episode_reward += reward[0]
+        episode_length += 1
+        if done[0]:
+            break
+    
+    print(f"\n✅ Evaluation episode:")
+    print(f"   Total reward: {episode_reward:.2f}")
+    print(f"   Episode length: {episode_length}")
+    
+    if episode_reward > -200:
+        print("\n✅ Policy shows learning! (reward > -200)")
+    else:
+        print("\n⚠️ Policy may need more training (reward < -200)")
+    
+    print("\n" + "=" * 60)
+    print("Phase 5 Step 2 (Baseline) COMPLETE")
+    print("=" * 60)
+    print("\nNext steps:")
+    print("1. Review tensorboard logs: tensorboard --logdir logs/ppo_baseline")
+    print("2. Run gamma tuning: python scripts/train_ppo_gamma_sweep.py")
+    print("3. Proceed to 100k full training")
 
 
-if __name__ == "__main__":
-    exit(main())
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train PPO on MHD control')
+    parser.add_argument(
+        '--equilibrium',
+        type=str,
+        default='simple',
+        choices=['simple', 'solovev'],
+        help='Equilibrium type (default: simple)'
+    )
+    parser.add_argument(
+        '--total-timesteps',
+        type=int,
+        default=10000,
+        help='Total training timesteps (default: 10000)'
+    )
+    parser.add_argument(
+        '--gamma',
+        type=float,
+        default=0.95,
+        help='Discount factor (default: 0.95)'
+    )
+    parser.add_argument(
+        '--no-save',
+        action='store_true',
+        help='Skip model saving (for quick verification)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Override save path if no-save
+    save_path = None if args.no_save else 'models/ppo_baseline_10k.zip'
+    
+    train_ppo_baseline(
+        equilibrium_type=args.equilibrium,
+        total_timesteps=args.total_timesteps,
+        gamma=args.gamma,
+        model_save_path=save_path if save_path else 'models/temp.zip'
+    )

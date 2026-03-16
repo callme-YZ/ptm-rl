@@ -1,17 +1,31 @@
 """
-PyTokMHD RL Module - Reinforcement Learning Interface for Tearing Mode Control.
+Reinforcement Learning module for MHD Tearing Mode Control.
 
-This module provides Gym-compatible environments for training RL agents
-to control tearing modes in tokamak plasmas.
+This module provides Gymnasium-compatible environments for training
+RL agents to control tearing modes in tokamak plasmas.
 
 Author: 小A 🤖 (RL Lead)
 Date: 2026-03-16
-Phase: 5 (RL Interface)
-Status: Week 1 Implementation
+Status: Phase 5 Step 2.5 - Gymnasium Migration + Parameterization
+
+Public API
+----------
+MHDTearingControlEnv : Gymnasium environment
+    Main RL environment with configurable equilibrium types
+
+Example
+-------
+>>> from pytokmhd.rl import MHDTearingControlEnv
+>>> 
+>>> # Simple equilibrium (fast, for testing)
+>>> env = MHDTearingControlEnv(equilibrium_type='simple')
+>>> obs, info = env.reset()
+>>> 
+>>> # Realistic Solovev equilibrium (requires PyTokEq)
+>>> env = MHDTearingControlEnv(equilibrium_type='solovev', R0=1.0, a=0.3)
+>>> obs, info = env.reset()
 """
 
 from .env import MHDTearingControlEnv
-from .wrappers import SB3CompatWrapper
 
-__version__ = '0.1.0'
-__all__ = ['MHDTearingControlEnv', 'SB3CompatWrapper']
+__all__ = ['MHDTearingControlEnv']
