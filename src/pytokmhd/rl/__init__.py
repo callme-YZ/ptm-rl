@@ -11,6 +11,7 @@ Status: Week 1 Implementation
 """
 
 from .env import MHDTearingControlEnv
+from .wrappers import SB3CompatWrapper
 
 __version__ = '0.1.0'
-__all__ = ['MHDTearingControlEnv']
+__all__ = ['MHDTearingControlEnv', 'SB3CompatWrapper']
