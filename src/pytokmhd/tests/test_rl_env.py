@@ -334,3 +334,103 @@ class TestGridAttributes:
         assert Nr > 0
         assert Nz > 0
         assert Nz == Nr // 2  # Default scaling
+
+
+class TestSolovevEquilibrium:
+    """Test Solovev equilibrium initialization."""
+    
+    def test_solovev_import(self):
+        """Test Solovev equilibrium can be imported."""
+        import sys
+        sys.path.insert(0, '/Users/yz/.openclaw/workspace-xiaoa/ptm-rl-step3/src')
+        from pytokeq.equilibrium.profiles.solovev_solution import SolovevSolution
+        assert SolovevSolution is not None
+    
+    def test_solovev_initialization(self):
+        """Test environment with Solovev equilibrium."""
+        env = MHDTearingControlEnv(
+            equilibrium_type='solovev',
+            R0=1.0,
+            a=0.3,
+            kappa=1.7,
+            delta=0.3,
+            grid_size=32  # Smaller for faster test
+        )
+        
+        obs, info = env.reset()
+        
+        assert obs.shape == (25,)
+        assert info['equilibrium_type'] == 'solovev'
+        assert env.psi is not None
+        assert env.psi.shape == (32, 32, 16)
+    
+    def test_solovev_no_nan(self):
+        """Test Solovev initialization produces finite values."""
+        env = MHDTearingControlEnv(
+            equilibrium_type='solovev',
+            grid_size=32
+        )
+        
+        obs, info = env.reset()
+        
+        assert np.all(np.isfinite(obs))
+        assert np.all(np.isfinite(env.psi))
+        assert not np.any(np.isnan(env.psi))
+        assert not np.any(np.isinf(env.psi))
+    
+    def test_solovev_reasonable_amplitude(self):
+        """Test Solovev psi has reasonable amplitude."""
+        env = MHDTearingControlEnv(
+            equilibrium_type='solovev',
+            grid_size=32
+        )
+        
+        obs, info = env.reset()
+        
+        psi_max = np.max(np.abs(env.psi))
+        
+        # Should be normalized to ~0.1 order
+        assert psi_max < 1.0, f"psi_max={psi_max} too large"
+        assert psi_max > 1e-3, f"psi_max={psi_max} too small"
+    
+    def test_solovev_evolution_stable(self):
+        """Test Solovev equilibrium remains stable during evolution."""
+        env = MHDTearingControlEnv(
+            equilibrium_type='solovev',
+            grid_size=32,
+            max_steps=50
+        )
+        
+        obs, info = env.reset()
+        
+        for _ in range(50):
+            action = np.array([0.0])
+            obs, reward, terminated, truncated, info = env.step(action)
+            
+            if terminated or truncated:
+                break
+            
+            assert np.all(np.isfinite(obs)), "Observation became non-finite"
+            assert np.all(np.isfinite(env.psi)), "psi became non-finite"
+        
+        # Should complete 50 steps without early termination
+        assert env.step_count >= 50 or truncated
+    
+    def test_solovev_vs_simple(self):
+        """Test Solovev produces different equilibrium than simple."""
+        env_simple = MHDTearingControlEnv(
+            equilibrium_type='simple',
+            grid_size=32
+        )
+        
+        env_solovev = MHDTearingControlEnv(
+            equilibrium_type='solovev',
+            grid_size=32
+        )
+        
+        obs_simple, _ = env_simple.reset()
+        obs_solovev, _ = env_solovev.reset()
+        
+        # psi should be different
+        psi_diff = np.mean(np.abs(env_simple.psi - env_solovev.psi))
+        assert psi_diff > 1e-6, "Solovev and simple should differ"

@@ -191,26 +191,48 @@ class MHDTearingControlEnv(gym.Env):
         
         elif self.equilibrium_type == 'solovev':
             # Realistic Solovev equilibrium via PyTokEq
+            import sys
+            import os
+            
+            # Add PyTokEq to path
+            pytokeq_path = os.path.join(os.path.dirname(__file__), '..', '..')
+            if pytokeq_path not in sys.path:
+                sys.path.insert(0, pytokeq_path)
+            
             try:
-                from pytokeq import SolovevEquilibrium
+                from pytokeq.equilibrium.profiles.solovev_solution import SolovevSolution
                 
-                eq = SolovevEquilibrium(
+                # Create Solovev analytical solution
+                eq = SolovevSolution(
                     R0=self.R0,
-                    a=self.a,
+                    eps=self.a / self.R0,  # Inverse aspect ratio
                     kappa=self.kappa,
                     delta=self.delta,
-                    grid_size=self.grid_size
+                    A=0.1  # Shafranov shift parameter
                 )
                 
-                # Use normalized psi from equilibrium
-                self.psi = eq.psi_normalized
-                # Store q-profile for diagnostics
-                self.q_profile = eq.q
+                # Generate grid in cylindrical coordinates
+                # Convert Cartesian (x,y,z) to (R,Z,phi)
+                # For now, approximate R ~ x, Z ~ z (near axis)
+                R_grid = self.R0 + (self.x - np.pi) * self.a / np.pi
+                Z_grid = (self.z - np.pi/2) * self.a / (np.pi/2)
                 
-            except ImportError:
+                # Compute psi on 2D grid
+                R_2d, Z_2d = np.meshgrid(R_grid, Z_grid, indexing='ij')
+                psi_2d = eq.psi(R_2d, Z_2d)
+                
+                # Extend to 3D (toroidally symmetric)
+                self.psi = np.zeros((self.nx, self.ny, self.nz))
+                for iy in range(self.ny):
+                    self.psi[:, iy, :] = psi_2d
+                
+                # Normalize to reasonable amplitude
+                self.psi = self.psi / (np.max(np.abs(self.psi)) + 1e-10) * 0.1
+                
+            except ImportError as e:
                 raise RuntimeError(
-                    "equilibrium_type='solovev' requires PyTokEq. "
-                    "Either install PyTokEq or use equilibrium_type='simple'"
+                    f"equilibrium_type='solovev' requires PyTokEq. "
+                    f"Import error: {e}"
                 )
         else:
             raise ValueError(f"Unknown equilibrium_type: {self.equilibrium_type}")
