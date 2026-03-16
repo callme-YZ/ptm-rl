@@ -91,3 +91,66 @@ Real Tokamak Application
 
 **Created:** 2026-03-16  
 **Last Updated:** 2026-03-16
+
+---
+
+## Phase 2: PyTokEq Integration (2026-03-16)
+
+### Real Equilibrium Initialization
+
+Use PyTokEq equilibria for realistic MHD simulations:
+
+```python
+from pytokmhd.solver.equilibrium_cache import EquilibriumCache
+from pytokmhd.solver.initial_conditions import pytokeq_initial, solovev_equilibrium
+
+# Setup MHD grid
+Nr, Nz = 64, 128
+r = np.linspace(0.5, 1.5, Nr)
+z = np.linspace(-0.5, 0.5, Nz)
+
+# Option 1: Analytical Solovev equilibrium (testing)
+psi, omega = solovev_equilibrium(r, z)
+
+# Option 2: PyTokEq equilibrium with cache (production)
+cache = EquilibriumCache(cache_size=50)
+
+def equilibrium_solver(q0, beta_p, target_grid):
+    # Your PyTokEq solver call here
+    # Returns: {'psi_eq': ..., 'j_eq': ..., 'p_eq': ..., 'q_profile': ...}
+    pass
+
+# Populate cache (once, takes ~5min for real PyTokEq)
+cache.populate_cache(
+    equilibrium_solver,
+    param_ranges={'q0': (0.8, 1.2), 'beta_p': (0.5, 2.0)},
+    target_grid=(r, z)
+)
+
+# Fast reset: <1ms per call
+psi, omega = pytokeq_initial(r, z, cache, perturbation_amplitude=0.01)
+```
+
+### Performance Benchmarks
+
+- **Cache build time:** <5min (one-time, 50 equilibria)
+- **Reset time:** <1ms (vs 100ms without cache)
+- **Speedup:** >100×
+- **Interpolation accuracy:** <0.1% error
+
+### Testing
+
+Run Phase 2 tests:
+```bash
+# PyTokEq integration tests
+pytest src/pytokmhd/tests/test_pytokeq_integration.py -v
+
+# Cache performance tests
+pytest src/pytokmhd/tests/test_equilibrium_cache.py -v
+
+# All Phase 2 tests (13 tests)
+pytest src/pytokmhd/tests/test_pytokeq*.py src/pytokmhd/tests/test_equilibrium_cache.py
+```
+
+See `PHASE2_COMPLETION_REPORT.md` for full details.
+
