@@ -39,3 +39,28 @@ temp/
 # Project-specific
 *.pyc
 .pytest_cache/
+
+# Temporary process ID files
+*.pid
+
+# Training logs (keep in local, not in repo)
+*.log
+
+# Checkpoints and intermediate models (optional)
+logs/
+checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

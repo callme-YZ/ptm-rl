@@ -1,0 +1,25 @@
+# PTM-RL v1.0 Requirements
+# PyTokMHD + RL Training for Tokamak Control
+
+# Core Scientific Computing
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+
+# JAX (for PyTokMHD solver)
+jax>=0.4.20
+jaxlib>=0.4.20
+
+# RL Framework
+gymnasium>=0.29.0
+stable-baselines3>=2.0.0,<3.0.0
+
+# Optional: Tensor logging
+tensorboard>=2.13.0
+
+# Development (optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Note: For PyTokEq integration, install separately:
+# pip install git+https://github.com/PlasmaControl/PyTokamak.git

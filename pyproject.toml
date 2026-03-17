@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ptm-rl"
+version = "1.0.0"
+description = "PyTokMHD + RL: Reinforcement Learning for Tokamak Plasma Control"
+authors = [
+    {name = "YZ Research Team"},
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+
+dependencies = [
+    "numpy>=1.24.0,<2.0.0",
+    "scipy>=1.10.0",
+    "matplotlib>=3.7.0",
+    "jax>=0.4.20",
+    "jaxlib>=0.4.20",
+    "gymnasium>=0.29.0",
+    "stable-baselines3>=2.0.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+]
+logging = [
+    "tensorboard>=2.13.0",
+]
+
+[project.urls]
+Repository = "https://github.com/callme-YZ/ptm-rl"
+
+[tool.setuptools]
+packages = ["pytokmhd"]
+
+[tool.setuptools.package-dir]
+pytokmhd = "src/pytokmhd"
+
+[tool.pytest.ini_options]
+testpaths = ["src/pytokmhd/tests"]
+python_files = "test_*.py"
+addopts = "-v --tb=short"

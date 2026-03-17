@@ -218,7 +218,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     model_path = None if args.no_save else 'models/ppo_baseline_10k.zip'
-    if args.total_timesteps >= 100000:
+    if args.total_timesteps >= 1000000:
+        model_path = 'models/ppo_baseline_1m.zip'
+    elif args.total_timesteps >= 100000:
         model_path = 'models/ppo_baseline_100k.zip'
     
     train_ppo_baseline(
