@@ -19,3 +19,7 @@ __all__ = [
     'divergence_toroidal',
     'laplacian_toroidal'
 ]
+from .utils import B_poloidal_from_psi
+
+__all__ = ['gradient_toroidal', 'divergence_toroidal', 'laplacian_toroidal', 
+           'B_poloidal_from_psi']

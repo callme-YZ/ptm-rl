@@ -143,11 +143,16 @@ def divergence_toroidal(A_r: np.ndarray, A_theta: np.ndarray,
     nr, ntheta = A_r.shape
     dr = grid.dr
     dtheta = grid.dtheta
+    r_grid = grid.r_grid
+    R_grid = grid.R_grid  # R = R₀ + r*cos(θ)
     J = grid.jacobian()  # √g = r*R
     
-    # Multiply by Jacobian
-    sqrtg_Ar = J * A_r
-    sqrtg_Atheta = J * A_theta
+    # For divergence of physical components:
+    # ∇·A = (1/(r*R))[∂(r*R*A_r)/∂r + ∂(R*A_θ)/∂θ]
+    # 
+    # Note: θ term has R, not r*R!
+    sqrtg_Ar = J * A_r  # r*R*A_r
+    sqrtg_Atheta = R_grid * A_theta  # R*A_θ (NOT r*R*A_θ!)
     
     # Derivatives
     # ∂(√g A_r)/∂r
