@@ -1,13 +1,12 @@
 """
 Reinforcement Learning module for PyTokMHD.
 
-Provides Gymnasium environments for MHD control.
+v1.1: Simplified cylindrical solver, energy-only control.
+v1.2: Will use fixed toroidal solver with full physics.
 """
 
-from .env import MHDTearingControlEnv
-from .toroidal_mhd_env import ToroidalMHDEnv
+from .mhd_env import ToroidalMHDEnv
 
 __all__ = [
-    'MHDTearingControlEnv',
     'ToroidalMHDEnv',
 ]

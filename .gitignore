@@ -64,3 +64,8 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+ppo_mhd_*
+*.zip
+*_logs/
+*_tensorboard/
+_old/
