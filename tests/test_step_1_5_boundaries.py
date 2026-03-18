@@ -169,7 +169,8 @@ class TestFluxConservation:
         # Initialize with smooth equilibrium (compatible with BC)
         r_grid = grid.r_grid
         psi0 = r_grid**2 * (1 - r_grid / grid.a)  # Zero at boundaries
-        omega0 = np.zeros_like(psi0)
+        from pytokmhd.operators import laplacian_toroidal
+        omega0 = laplacian_toroidal(psi0, grid)  # Consistent with ψ
         
         solver.initialize(psi0, omega0)
         
