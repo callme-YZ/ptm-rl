@@ -143,6 +143,73 @@ where:
 
 ---
 
+
+### 2.3 Tearing Mode Stabilization Physics
+
+**Why current drive can stabilize tearing modes:**
+
+**Tearing mode stability parameter:**
+$$
+\Delta' = \left[ \frac{d \ln \psi'}{d r} \right]_{r_s^+}^{r_s^-}
+$$
+
+where $r_s$ = resonant surface (where $q(r_s) = m/n$)
+
+**Physical interpretation:**
+- $\Delta' > 0$: Island grows (unstable)
+- $\Delta' < 0$: Island suppressed (stable)
+- $\Delta'$ depends on **current gradient** $\partial J/\partial r$ at $r_s$
+
+**How external current helps:**
+
+1. **Modify current profile:**
+   $$
+   J_{total}(r) = J_{plasma}(r) + J_{ext}(r)
+   $$
+
+2. **Change gradient at resonant surface:**
+   $$
+   \left. \frac{\partial J}{\partial r} \right|_{r_s} \text{ modified by } J_{ext}(r_s)
+   $$
+
+3. **Flip Δ' sign:**
+   $$
+   \Delta'(J_{ext}) < 0 \quad \Rightarrow \quad \text{Stabilization}
+   $$
+
+**Example (simplified 1D):**
+
+Suppose resonant surface at $r_s = 0.5$:
+
+```python
+# Without control
+J_plasma = -dq/dr  # Negative gradient (tearing unstable)
+Δ_prime = +2.5  # Positive → island grows
+
+# With current drive at r_s
+J_ext = gaussian(r, center=0.5, amplitude=+1.0)
+J_total = J_plasma + J_ext
+# → gradient flattens at r_s
+Δ_prime_new = -0.8  # Negative → island suppressed!
+```
+
+**RL Learning Task:**
+
+The agent does **not** know $r_s$ a priori. Instead:
+
+1. **Observation** contains $\psi$ modes → agent detects tearing (m=1 mode growth)
+2. **Through trial-and-error**, agent learns:
+   - WHERE to drive current ($r \approx r_s$, $\theta \approx 0$)
+   - HOW MUCH to drive (amplitude to flip $\Delta'$)
+3. **Reward** decreases when island width shrinks
+
+**This is the core physics RL must discover** — v1.2 enables this learning.
+
+**References:**
+- Fitzpatrick, R. M. (1995). "Helical temperature perturbations..." Phys. Plasmas 2, 825.
+- La Haye, R. J. (2006). "Neoclassical tearing modes..." Phys. Plasmas 13, 055501.
+
+
 ## 3. Action Space Design Options
 
 ### 3.1 Option A: Fixed Gaussian Basis (Recommended v1.2)
