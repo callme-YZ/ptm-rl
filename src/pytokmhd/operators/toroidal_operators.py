@@ -34,8 +34,9 @@ def gradient_toroidal(f: np.ndarray, grid: ToroidalGrid) -> Tuple[np.ndarray, np
     """
     Compute gradient ∇f in toroidal coordinates (axisymmetric).
     
+    Returns physical components compatible with divergence_toroidal.
     For orthogonal toroidal coordinates with axisymmetry (∂/∂φ = 0):
-        ∇f = (∂f/∂r) ê_r + (1/r²)(∂f/∂θ) ê_θ
+        ∇f = (∂f/∂r) ê_r + (1/r)(∂f/∂θ) ê_θ
     
     Uses 2nd-order centered finite differences.
     
@@ -49,9 +50,9 @@ def gradient_toroidal(f: np.ndarray, grid: ToroidalGrid) -> Tuple[np.ndarray, np
     Returns
     -------
     grad_r : np.ndarray (nr, ntheta)
-        Radial component of gradient
+        Radial component of gradient (physical)
     grad_theta : np.ndarray (nr, ntheta)
-        Poloidal component of gradient (with metric factor 1/r²)
+        Poloidal component of gradient (physical, with metric factor 1/r)
     
     Notes
     -----
@@ -83,7 +84,7 @@ def gradient_toroidal(f: np.ndarray, grid: ToroidalGrid) -> Tuple[np.ndarray, np
     grad_r[0, :] = (-3*f[0, :] + 4*f[1, :] - f[2, :]) / (2*dr)
     grad_r[-1, :] = (3*f[-1, :] - 4*f[-2, :] + f[-3, :]) / (2*dr)
     
-    # Poloidal derivative: (1/r²) ∂f/∂θ
+    # Poloidal derivative: (1/r) ∂f/∂θ (physical component)
     # Interior: centered difference
     df_dtheta = np.zeros_like(f)
     df_dtheta[:, 1:-1] = (f[:, 2:] - f[:, :-2]) / (2*dtheta)
@@ -92,9 +93,9 @@ def gradient_toroidal(f: np.ndarray, grid: ToroidalGrid) -> Tuple[np.ndarray, np
     df_dtheta[:, 0] = (f[:, 1] - f[:, -1]) / (2*dtheta)
     df_dtheta[:, -1] = (f[:, 0] - f[:, -2]) / (2*dtheta)
     
-    # Apply metric factor 1/r²
-    # Avoid division by zero at r=0 (grid.r[0] = 1e-6, safe)
-    grad_theta = df_dtheta / r_grid**2
+    # Apply metric factor 1/r (physical component, not contravariant 1/r²)
+    # This matches divergence_toroidal which expects physical components
+    grad_theta = df_dtheta / r_grid
     
     return grad_r, grad_theta
 
@@ -152,21 +153,31 @@ def divergence_toroidal(A_r: np.ndarray, A_theta: np.ndarray,
     # 
     # Note: θ term has R, not r*R!
     sqrtg_Ar = J * A_r  # r*R*A_r
-    sqrtg_Atheta = R_grid * A_theta  # R*A_θ (NOT r*R*A_θ!)
     
     # Derivatives
-    # ∂(√g A_r)/∂r
+    # ∂(√g A_r)/∂r = ∂(r*R*A_r)/∂r
     d_sqrtg_Ar_dr = np.zeros_like(A_r)
     d_sqrtg_Ar_dr[1:-1, :] = (sqrtg_Ar[2:, :] - sqrtg_Ar[:-2, :]) / (2*dr)
     d_sqrtg_Ar_dr[0, :] = (-3*sqrtg_Ar[0, :] + 4*sqrtg_Ar[1, :] - sqrtg_Ar[2, :]) / (2*dr)
     d_sqrtg_Ar_dr[-1, :] = (3*sqrtg_Ar[-1, :] - 4*sqrtg_Ar[-2, :] + sqrtg_Ar[-3, :]) / (2*dr)
     
-    # ∂(√g A_θ)/∂θ
-    d_sqrtg_Atheta_dtheta = np.zeros_like(A_theta)
-    d_sqrtg_Atheta_dtheta[:, 1:-1] = (sqrtg_Atheta[:, 2:] - sqrtg_Atheta[:, :-2]) / (2*dtheta)
+    # ∂(R*A_θ)/∂θ - MUST use product rule because R = R(θ)!
+    # Product rule: ∂(R*A_θ)/∂θ = ∂R/∂θ * A_θ + R * ∂A_θ/∂θ
+    #                            = -r*sin(θ) * A_θ + R * ∂A_θ/∂θ
+    
+    # Compute ∂R/∂θ = -r*sin(θ)
+    theta_grid = grid.theta_grid
+    dR_dtheta = -r_grid * np.sin(theta_grid)
+    
+    # Compute ∂A_θ/∂θ
+    dAtheta_dtheta = np.zeros_like(A_theta)
+    dAtheta_dtheta[:, 1:-1] = (A_theta[:, 2:] - A_theta[:, :-2]) / (2*dtheta)
     # Periodic
-    d_sqrtg_Atheta_dtheta[:, 0] = (sqrtg_Atheta[:, 1] - sqrtg_Atheta[:, -1]) / (2*dtheta)
-    d_sqrtg_Atheta_dtheta[:, -1] = (sqrtg_Atheta[:, 0] - sqrtg_Atheta[:, -2]) / (2*dtheta)
+    dAtheta_dtheta[:, 0] = (A_theta[:, 1] - A_theta[:, -1]) / (2*dtheta)
+    dAtheta_dtheta[:, -1] = (A_theta[:, 0] - A_theta[:, -2]) / (2*dtheta)
+    
+    # Apply product rule
+    d_sqrtg_Atheta_dtheta = dR_dtheta * A_theta + R_grid * dAtheta_dtheta
     
     # Divergence: (1/√g)[∂(√g A_r)/∂r + ∂(√g A_θ)/∂θ]
     div_A = (d_sqrtg_Ar_dr + d_sqrtg_Atheta_dtheta) / J
@@ -252,7 +263,7 @@ def laplacian_toroidal(f: np.ndarray, grid: ToroidalGrid) -> np.ndarray:
     term_r = sqrtg * g_rr * df_dr
     
     # Compute √g * g^θθ * ∂f/∂θ = r*R * (1/r²) * ∂f/∂θ = (R/r) * ∂f/∂θ
-    term_theta = sqrtg * g_tt * df_dtheta
+    # REMOVED OLD BUGGY CODE: term_theta = sqrtg * g_tt * df_dtheta
     
     # ∂/∂r(√g g^rr ∂f/∂r)
     d_term_r_dr = np.zeros_like(f)
@@ -260,12 +271,25 @@ def laplacian_toroidal(f: np.ndarray, grid: ToroidalGrid) -> np.ndarray:
     d_term_r_dr[0, :] = (-3*term_r[0, :] + 4*term_r[1, :] - term_r[2, :]) / (2*dr)
     d_term_r_dr[-1, :] = (3*term_r[-1, :] - 4*term_r[-2, :] + term_r[-3, :]) / (2*dr)
     
-    # ∂/∂θ(√g g^θθ ∂f/∂θ)
-    d_term_theta_dtheta = np.zeros_like(f)
-    d_term_theta_dtheta[:, 1:-1] = (term_theta[:, 2:] - term_theta[:, :-2]) / (2*dtheta)
+    # ∂/∂θ(√g g^θθ ∂f/∂θ) = ∂/∂θ[(R/r) * ∂f/∂θ]
+    # CORRECT FORMULA (product rule):
+    # ∂/∂θ[(R/r) * ∂f/∂θ] = (1/r)[∂R/∂θ * ∂f/∂θ + R * ∂²f/∂θ²]
+    #                       = (1/r)[-r*sin(θ) * ∂f/∂θ + R * ∂²f/∂θ²]
+    #                       = -sin(θ) * ∂f/∂θ + (R/r) * ∂²f/∂θ²
+    
+    # Compute ∂R/∂θ = -r*sin(θ)
+    theta_grid = grid.theta_grid
+    dR_dtheta = -r_grid * np.sin(theta_grid)
+    
+    # Compute ∂²f/∂θ² using centered finite differences
+    d2f_dtheta2 = np.zeros_like(f)
+    d2f_dtheta2[:, 1:-1] = (f[:, 2:] - 2*f[:, 1:-1] + f[:, :-2]) / dtheta**2
     # Periodic
-    d_term_theta_dtheta[:, 0] = (term_theta[:, 1] - term_theta[:, -1]) / (2*dtheta)
-    d_term_theta_dtheta[:, -1] = (term_theta[:, 0] - term_theta[:, -2]) / (2*dtheta)
+    d2f_dtheta2[:, 0] = (f[:, 1] - 2*f[:, 0] + f[:, -1]) / dtheta**2
+    d2f_dtheta2[:, -1] = (f[:, 0] - 2*f[:, -1] + f[:, -2]) / dtheta**2
+    
+    # Apply product rule: ∂/∂θ[(R/r) * ∂f/∂θ]
+    d_term_theta_dtheta = (dR_dtheta / r_grid) * df_dtheta + (R_grid / r_grid) * d2f_dtheta2
     
     # Laplacian: (1/√g)[∂/∂r(...) + ∂/∂θ(...)]
     lap_f = (d_term_r_dr + d_term_theta_dtheta) / sqrtg

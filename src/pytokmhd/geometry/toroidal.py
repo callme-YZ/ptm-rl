@@ -125,8 +125,10 @@ class ToroidalGrid:
         self.ntheta = ntheta
         
         # 1D coordinate arrays
-        # r: [0, a] with small offset from r=0 to avoid singularity
-        self.r = np.linspace(1e-6, a, nr)
+        # r: [r_min, a] with offset from r=0 to avoid coordinate singularity
+        # r_min = 0.15 chosen to minimize 1/r² numerical errors while covering plasma region
+        r_min = 0.15 * a  # 15% of minor radius, 1/r² ≈ 44 (vs 278 at 0.05a)
+        self.r = np.linspace(r_min, a, nr)
         # theta: [0, 2π] periodic
         self.theta = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
         
