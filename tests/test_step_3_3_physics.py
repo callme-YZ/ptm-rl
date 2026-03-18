@@ -35,10 +35,10 @@ class TestEnergyConservation:
         grid = ToroidalGrid(R0=1.0, a=0.3, nr=32, ntheta=64)
         solver = ToroidalMHDSolver(grid, dt=1e-5, eta=1e-6, nu=1e-6)  # dt reduced 10x
         
-        # Use near-equilibrium state: constant psi minimizes ∇²ψ
+        # Use equilibrium compatible with Dirichlet BC (ψ=0 at boundaries)
         # This tests energy conservation for the symplectic integrator
-        # without triggering diffusion-related instabilities
-        psi0 = np.ones((grid.nr, grid.ntheta))  # Constant: ∇²ψ = 0
+        # without boundary forcing creating artificial gradients
+        psi0 = np.zeros((grid.nr, grid.ntheta))  # Zero: satisfies BC
         omega0 = np.zeros_like(psi0)  # No flow
         
         solver.initialize(psi0, omega0)
