@@ -1,0 +1,35 @@
+v1.2.1 — Energy Conservation Benchmark
+=======================================
+
+STATUS: ✅ COMPLETE
+DATE:   2026-03-18 23:42 GMT+8
+AUTHOR: 小P ⚛️
+
+PHASES:
+  Phase 0 (Design):        ✅ Complete
+  Phase 1 (Implementation): ✅ Complete
+  Phase 2 (Benchmark):      ✅ Complete
+  Phase 3 (Documentation):  ✅ Complete
+  Phase 2.5 (Validation):   ⏳ Pending 小A
+
+RESULTS:
+  Config A (Cylindrical):   6.75% drift (Tier 3)
+  Config B (PyTokEq):       69,747% drift (FAIL - physics gap)
+
+DELIVERABLES:
+  Code:        29.7 KB (998 lines)
+  Docs:        35.1 KB (4 documents)
+  Total:       64.8 KB
+
+VALUE:
+  ✅ Framework established
+  ✅ Baseline measured
+  ✅ Physics gap identified (v1.2 → v1.3)
+  ✅ Requirements clear
+
+NEXT:
+  v1.3 — Hamiltonian + Poisson bracket + ∇P
+  Target: PyTokEq Solovev < 1% drift
+
+---
+小P ⚛️ 2026-03-18
