@@ -125,6 +125,15 @@ class Grid3D:
         self.nζ = nzeta
         self.dθ = self.dtheta
         self.dζ = self.dzeta
+        
+        # Geometry attributes for Poisson bracket (Phase 1.3 compatibility)
+        # R(r, θ) = R₀ + r·cos(θ) (major radius in toroidal geometry)
+        r_2d = self.r[:, np.newaxis]  # (nr, 1)
+        theta_2d = self.theta[np.newaxis, :]  # (1, ntheta)
+        self.R_grid = self.R0 + r_2d * np.cos(theta_2d)  # (nr, ntheta)
+        
+        # Toroidal magnetic field (default: B₀ = 1.0 T for normalized units)
+        self.B0 = 1.0
 
 
 def create_q_profile(
@@ -286,6 +295,13 @@ def create_equilibrium_ic(
     # Broadcast to 3D (replicate along ζ axis)
     psi0 = np.repeat(psi0_2d[:, :, np.newaxis], nzeta, axis=2)
     omega0 = np.repeat(omega0_2d[:, :, np.newaxis], nzeta, axis=2)
+    
+    # Enforce Dirichlet boundary conditions (required for IMEX solver)
+    # Grid boundaries (r_min, r_max) approximate physical boundaries (0, a)
+    psi0[0, :, :] = 0.0  # Inner boundary
+    psi0[-1, :, :] = 0.0  # Outer boundary
+    omega0[0, :, :] = 0.0
+    omega0[-1, :, :] = 0.0
     
     return psi0, omega0, q_profile
 
