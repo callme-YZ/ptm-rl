@@ -92,7 +92,7 @@ Phase: 2.3 (3D Physics Core)
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union, Callable
 
 # Import dependencies from previous phases
 from ..operators.poisson_bracket_3d import poisson_bracket_3d
@@ -110,6 +110,7 @@ def evolve_3d_imex(
     eta: float = 1e-4,
     dt: float = 0.01,
     n_steps: int = 100,
+    J_ext: Optional[Union[Callable, np.ndarray]] = None,
     store_interval: int = 1,
     verbose: bool = False
 ) -> Tuple[np.ndarray, np.ndarray, Dict]:
@@ -136,6 +137,14 @@ def evolve_3d_imex(
         Time step, default 0.01
     n_steps : int, optional
         Number of time steps, default 100
+    J_ext : callable or np.ndarray or None, optional
+        External current density J_ext(r, θ, ζ, t).
+        
+        If callable: J_ext(t, grid) -> np.ndarray (nr, nθ, nζ)
+        If ndarray: Constant J_ext (nr, nθ, nζ) independent of time
+        If None: No external current (backward compatible with Phase 2.3)
+        
+        Default: None
     store_interval : int, optional
         Store fields every `store_interval` steps (default 1)
         - 1: store all steps (memory intensive)
@@ -222,7 +231,7 @@ def evolve_3d_imex(
         t = n * dt
         
         # --- IMEX Time Step ---
-        psi_new, omega_new = _imex_step(psi, omega, grid, eta, dt, helmholtz_solvers)
+        psi_new, omega_new = _imex_step(psi, omega, grid, eta, dt, helmholtz_solvers, t, J_ext)
         
         # Update fields
         psi = psi_new
@@ -255,13 +264,16 @@ def _imex_step(
     grid,
     eta: float,
     dt: float,
-    helmholtz_solvers: Dict
+    helmholtz_solvers: Dict,
+    t: float,
+    J_ext: Optional[Union[Callable, np.ndarray]]
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Single IMEX time step.
+    Single IMEX time step with external current.
     
     1. Compute explicit RHS (Poisson brackets)
-    2. Solve implicit diffusion (Helmholtz equation)
+    2. Add external current to omega RHS
+    3. Solve implicit diffusion (Helmholtz equation)
     
     Parameters
     ----------
@@ -274,6 +286,10 @@ def _imex_step(
         Time step
     helmholtz_solvers : dict
         Pre-built sparse matrices for Helmholtz solve
+    t : float
+        Current time (for time-dependent J_ext)
+    J_ext : callable or ndarray or None
+        External current density
     
     Returns
     -------
@@ -289,6 +305,15 @@ def _imex_step(
     
     # RHS for ω equation: [ψ, ω]
     rhs_omega = poisson_bracket_3d(psi, omega, grid)
+    
+    # --- NEW: Add external current to omega RHS ---
+    if J_ext is not None:
+        if callable(J_ext):
+            J_current = J_ext(t, grid)  # Time-dependent
+        else:
+            J_current = J_ext           # Constant
+        
+        rhs_omega = rhs_omega + J_current
     
     # --- Step 2: Implicit diffusion solve ---
     # Prepare RHS with boundary conditions
