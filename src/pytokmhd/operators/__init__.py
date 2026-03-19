@@ -20,6 +20,10 @@ from .poisson_bracket import (
     jacobi_identity_residual,
     advection_bracket,
 )
+from .poisson_solver import (
+    solve_poisson_toroidal,
+    laplacian_toroidal_check,
+)
 from .utils import B_poloidal_from_psi
 
 __all__ = [
@@ -30,5 +34,7 @@ __all__ = [
     'poisson_bracket',
     'jacobi_identity_residual',
     'advection_bracket',
+    'solve_poisson_toroidal',
+    'laplacian_toroidal_check',
     'B_poloidal_from_psi'
 ]

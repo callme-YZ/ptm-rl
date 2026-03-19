@@ -106,7 +106,8 @@ def solve_implicit_resistive(
         psi_2d = psi_flat.reshape((nr, ntheta))
         
         # Apply J operator (compute_current_density)
-        J_psi = compute_current_density(psi_2d, grid)
+        # Use normalized units (μ₀=1.0) for consistency
+        J_psi = compute_current_density(psi_2d, grid, mu0=1.0)
         
         # Operator: I - dt*eta*J  (CORRECTED: minus sign for resistive damping!)
         result = psi_2d - dt * eta * J_psi
