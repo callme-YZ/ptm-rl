@@ -333,11 +333,15 @@ class MHDElsasserEnv(gym.Env):
         """
         # Extract m=1 amplitude (dominant ballooning mode)
         z_plus_np = np.array(self.state.z_plus)
+        z_minus_np = np.array(self.state.z_minus)
         r_mid = self.Nr // 2
-        z_plus_mid = z_plus_np[r_mid, :, :]
         
-        # FFT
-        fft = np.fft.fft(z_plus_mid, axis=0)
+        # Velocity (equilibrium cancels, perturbation only)
+        # Fixed 2026-03-22: was using z_plus_mid (total field), now use velocity
+        v_mid = (z_plus_np[r_mid, :, :] + z_minus_np[r_mid, :, :]) / 2.0
+        
+        # FFT on velocity perturbation
+        fft = np.fft.fft(v_mid, axis=0)
         m1_amplitude = np.abs(fft[1, :]).mean()  # m=1 mode
         
         # Track amplitude
