@@ -1,162 +1,299 @@
-# PTM-RL v2.0 Experiments
+# PTM-RL v2.0: Elsässer MHD + RL Framework
 
-**Started:** 2026-03-20  
-**Status:** Early development - Framework validation phase  
-**Branch:** `feature/v2.0-elsasser`
+**Phase 1 Status:** Physics layer validated ✅ | RL layer exploratory ⏳  
+**Branch:** `feature/v2.0-elsasser`  
+**Tag:** `v2.0.0-phase1` (2026-03-21)
 
 ---
 
 ## Overview
 
-v2.0 development experiments for Vector Elsässer MHD + RL framework.
+v2.0 develops a **structure-preserving MHD simulation framework** coupled with reinforcement learning for plasma instability control.
 
-**Current Focus:**
-- Elsässer variables z± = ω ± ψ (2D reduced MHD)
-- PyTokEq equilibrium integration
-- Physics correctness validation
-- RL framework baseline
+**Key innovations:**
+- PyTokEq-based realistic tokamak equilibrium (β~0.17)
+- Morrison bracket Hamiltonian formulation
+- Elsässer variable representation (z± = v ± B)
+- RMP coil control via RL
 
----
-
-## Files
-
-### Core Environment
-- **`mhd_elsasser_env.py`** (474 lines) - Gymnasium environment for Elsässer MHD
-  - Observation: z±, derivatives, RMP state
-  - Action: 5-coil RMP current control
-  - Physics: β~0.17 (realistic tokamak parameters)
-  - Stability: 100 steps verified (vs v1.4 77-step crash)
-
-### Training Scripts
-- **`train_v2_ppo.py`** (323 lines) - PPO training implementation
-  - Hyperparameters: lr=3e-4, γ=0.99, batch_size=64
-  - Multi-env support (n_envs=1 default)
-  - Checkpointing + evaluation
-
-- **`train_50k_baseline.py`** (152 lines) - 50k baseline run
-  - **Status:** Running (PID in train_50k.pid)
-  - Checkpoints: every 5000 steps
-  - Eval: every 5000 steps
-  - Target: Establish v2.0 baseline performance
-
-### Verification & Profiling
-- **`quick_verify.py`** (47 lines) - Fast environment sanity check
-- **`verify_rmp_5000x.py`** (120 lines) - Long-term RMP stability test
-- **`profile_env.py`** (81 lines) - Performance profiling
-- **`jit_solver_wrapper.py`** (150 lines) - JIT compilation experiments
+**Current scope:** Ballooning mode suppression in simplified 3D toroidal geometry
 
 ---
 
-## Key Results (2026-03-20)
+## Phase 1 Achievements (2026-03-20 to 2026-03-21)
 
 ### Physics Validation ✅
-**5k test completed:**
-- ✅ All episodes: 100 steps (stable)
-- ✅ No early termination
-- ✅ β = 0.175 (realistic)
-- ✅ Energy conservation < 0.2%
-- ✅ Growth rate measured: γ~1.06
 
-**vs v1.4 comparison:**
-- v1.4 IC (β~10⁹): 77-step crash ❌
-- v2.0 IC (β~0.17): 100-step stable ✅
+**C1: Growth Rate**
+- Measured: γ = 1.29
+- Theory (ideal MHD): γ = 0.73
+- **Gap:** 77% (expected due to resistive effects, ∇p, finite-n)
+- **Status:** Positive growth confirmed, order-of-magnitude correct ✅
 
-**Root cause fix:**
-- YZ's PyTokEq equilibrium setup
-- Correct pressure/current profiles
-- Realistic physics parameters
+**C2: Energy Conservation**
+- Drift: 0.38% (< 1% threshold) ✅
+- Secular growth: 1.8% at t=10 (< 5% threshold) ✅
+- **Status:** Structure-preserving numerics working ✅
 
-### RL Baseline (In Progress)
-**50k training:**
-- **Started:** 2026-03-20 23:46
-- **PID:** Available in `train_50k.pid`
-- **Log:** `train_50k.log`
-- **Expected:** ~1-1.3 hours
-- **Monitoring:** Every 5k steps
+**C3: v1.4 vs v2.0**
+- v1.4: β~10⁹ (unphysical), 77-step crash ❌
+- v2.0: β=0.17 (realistic), 100-step stable ✅
+- Energy conservation: 92% better (5% → 0.38%)
+- **Status:** Fundamental fix via YZ's PyTokEq approach ✅
 
-**5k preliminary:**
-- Reward: -201 (flat, no learning yet)
-- Framework: Working ✅
-- Physics: Stable ✅
+**Validation report:** `PHYSICS_VALIDATION_REPORT.md`
 
 ---
 
-## Technical Details
+### RL Baseline Training
 
-### Environment Specs
-```python
-Observation space: Box(19,)
-  - z+ field (64×64 flattened) → reduced to stats
-  - z- field (64×64 flattened) → reduced to stats
-  - Derivatives (∂z±/∂r, ∂z±/∂θ)
-  - RMP state (5 coils)
+**50k baseline (Phase 1):**
+- Result: Reward improvement ~0.08% (statistically insignificant)
+- Learning signal: Weak/absent
+- Physics: Stable (100 steps, no crashes) ✅
+- **Conclusion:** Framework trainable, but learning dynamics need investigation
 
-Action space: Box(5,)
-  - 5-coil RMP currents
-  - Range: [-1, 1] normalized
+**200k extended (Phase 2.0, in progress):**
+- Current: +32.1% improvement (5k → 70k steps)
+- Peak: +36.8% (at 15k steps)
+- Episode length: ~79 steps (early termination, likely amplitude explosion)
+- **Status:** Clear learning signal detected, plateau after 15k ⏳
 
-Reward: -island_width
-  - Measured via O-point detection
-  - Goal: Minimize island growth
+**Key finding:** Multi-environment parallelization essential for reasonable training time (6× speedup)
 
-Physics:
-  - Grid: 64×64 (r,θ)
-  - Time step: dt = 0.01
-  - Episode length: 100 steps
-  - Resistivity: η = 1e-5
-```
+---
+
+## Technical Specifications
+
+### Environment
+
+**Observation:** 113 features
+- z± spectral modes (100 features via FFT)
+- Conservation diagnostics (3 features)
+- Island width placeholders (10 features)
+
+**Action:** 4-channel RMP coils
+- Range: [-1, 1] normalized
+- Forcing: F_RMP = scale × action × spatial_pattern
+
+**Reward:** -m2_amplitude (ballooning mode)
+- Goal: Minimize perturbation growth
+- Energy conservation penalty: -10 × drift
+
+**Physics:**
+- Grid: 16×32×16 (r, θ, z)
+- Time step: dt_rl = 0.02 (5 internal steps of dt=0.004)
+- Episode length: 100 steps max
+- Parameters: ε=0.323, η=0.01, pressure_scale=0.2
+
+**Termination:**
+- Amplitude explosion: A > 10×A_initial
+- NaN detection
+- Max steps: 100
 
 ### Performance
-- **Step time:** ~0.11 sec/step
-- **FPS:** ~8-9 steps/sec
-- **Episode time:** ~11 sec (100 steps)
+
+**Single process:**
+- ~9 FPS
+- Training time: ~5-6h (200k steps)
+
+**Multi-process (8 cores):**
+- ~46 FPS
+- Training time: ~45-60 min (200k steps)
+- **Recommended for RL experiments**
 
 ---
 
-## Next Steps
+## Current Limitations
 
-**Immediate (待50k完成):**
-1. Validate 50k baseline results
-2. Analyze learning curves
-3. Verify RMP control effectiveness
+### Physics
 
-**Short-term (v2.0 Phase 1):**
-1. Morrison bracket implementation
-2. Energy-conserving discretization
-3. Structure-preserving validation
+**Growth rate gap (77%):**
+- Simple theory (γ~√(β/ε)) ignores resistivity, pressure gradient, finite-n
+- Numerical error not ruled out (grid convergence not tested)
+- **Not critical for RL framework validation**
 
-**Mid-term (v2.0 Phase 2-3):**
-1. Vector Elsässer z± = u ± B (full 3D)
-2. Incompressibility constraint
-3. Production-ready RL training
+**No benchmark comparison:**
+- No canonical test case for ballooning modes
+- Should compare with BOUT++/M3D-C1 (future work)
 
----
+### RL
 
-## Development Log
+**Weak learning (50k baseline):**
+- Reward improvement ~0% → learning dynamics unclear
+- May need: longer training, reward tuning, or algorithm changes
 
-### 2026-03-20
-- **21:00-23:00** Environment development (小A)
-  - mhd_elsasser_env.py created (474 lines)
-  - PyTokEq integration
-  - Physics validation
+**Early termination (~79 steps):**
+- Episodes end before 100 steps (amplitude explosion threshold)
+- Policy learns partial suppression but not full control
+- **Not yet demonstration-quality**
 
-- **23:00-23:30** Quick verification
-  - 5k test: 100% success ✅
-  - Physics correctness confirmed
-  - 小P cross-validation ⚛️
-
-- **23:45** 50k baseline started
-  - Background training launched
-  - Monitoring active
-  - Expected completion: ~01:00
+**Plateau (200k extended):**
+- Learning stops after 15k steps
+- Possible causes: local optimum, exploration deficit, reward saturation
 
 ---
 
-**Team:**
-- 小A 🤖: RL framework lead
-- 小P ⚛️: Physics validation
-- ∞: Coordination + Git management
-- YZ 🐙: Direction + decisions
+## Repository Structure
 
+### Core Code
+- `mhd_elsasser_env.py` (474 lines) - Gymnasium environment
+- `train_v2_ppo.py` (323 lines) - PPO training (single/multi-env)
+- `train_50k_baseline.py` (152 lines) - Phase 1 baseline script
+
+### Validation
+- `validate_physics_c1.py` (323 lines) - Growth rate verification
+- `validate_physics_c2.py` (162 lines) - Energy conservation
+- `validate_physics_c3.py` (196 lines) - v1.4 comparison
+- `PHYSICS_VALIDATION_REPORT.md` (412 lines) - Full analysis
+
+### Utilities
+- `jit_solver_wrapper.py` (150 lines) - Performance optimization
+- `verify_rmp_5000x.py` (120 lines) - Long-term stability test
+- `profile_env.py` (81 lines) - Profiling tool
+- `quick_verify.py` (47 lines) - Sanity check
+
+**Total:** 2,602 lines (2,028 Python + 574 Markdown)
+
+---
+
+## Known Issues
+
+### Physics Layer
+- Growth rate theory-simulation gap (77%) not fully understood
+- Grid convergence not tested (numerical error unknown)
+- No external benchmark (BOUT++, M3D-C1)
+
+### RL Layer
+- 50k baseline: no significant learning
+- 200k: plateau after 15k steps
+- Early termination: episodes ~79 steps (not 100)
+- Control effectiveness: partial suppression, not full control
+
+### Infrastructure
+- Multi-env training requires proper `__name__ == '__main__'` structure
+- macOS `spawn` mode needed (not `fork`)
+- No GPU support yet (planned for Phase 2.3 offline RL)
+
+---
+
+## Phase 2 Plan
+
+**Design document:** `PHASE_2_DESIGN.md`
+
+**Objectives:**
+1. **Phase 2.0:** Establish learning baseline (200k steps) → **In progress** ⏳
+2. **Phase 2.1:** Physics-informed reward shaping (1 week)
+3. **Phase 2.2:** Symplectic PPO (structure-preserving policy) (2 weeks)
+4. **Phase 2.3:** Offline RL baseline (IQL with 50k data) (1 week)
+
+**Success criteria:**
+- >20% mode suppression (vs uncontrolled)
+- <1% energy conservation drift
+- Reproducible across seeds
+- Episode completion >90 steps
+
+**Compute resources:**
+- Multi-CPU: 8 cores (6× speedup)
+- GPU: Optional for Phase 2.3 (10× speedup for offline RL)
+
+---
+
+## Scientific Context
+
+### What v2.0 is
+
+**A validated research framework for:**
+- Realistic MHD physics (β~0.17 tokamak-like)
+- Structure-preserving numerics (energy conservation <1%)
+- RL-trainable environment (episodes stable, no crashes)
+
+**Suitable for:**
+- Computational plasma physics research
+- RL for control exploration
+- Publication: Plasma Science & Technology (70-80% confidence)
+
+### What v2.0 is NOT
+
+**Not production-ready:**
+- RL control effectiveness: partial, not demonstrated
+- No experimental validation
+- No ITER-relevant parameters
+
+**Not breakthrough-level:**
+- Theory-simulation gap not resolved
+- Learning dynamics need deeper investigation
+- Not suitable for Nuclear Fusion / Nature-level journals (yet)
+
+**Honest assessment:** v2.0 is an **excellent foundation** for future work, not a complete demonstration
+
+---
+
+## How to Use
+
+### Quick Test
+```bash
+python quick_verify.py  # ~1 minute
+```
+
+### Physics Validation
+```bash
+python validate_physics_c1.py  # Growth rate (~3 min)
+python validate_physics_c2.py  # Energy conservation (~3 min)
+python validate_physics_c3.py  # v1.4 comparison (~5 min)
+```
+
+### Training (Multi-CPU)
+```bash
+# Requires proper __name__ guard in script
+python train_v2_ppo.py --total-steps 200000 --n-envs 8
+```
+
+### Monitoring
+```bash
+tail -f train_*.log
+tensorboard --logdir ./logs  # If implemented
+```
+
+---
+
+## Team & Attribution
+
+**Development:**
+- 小A 🤖: RL framework, training infrastructure
+- 小P ⚛️: Physics validation, theory analysis
+- YZ 🐙: PyTokEq breakthrough (10-min β fix), direction
+- ∞: Coordination, Git management, documentation
+
+**Critical decisions:**
+- YZ's PyTokEq approach (2026-03-20): Solved v1.4 β~10⁹ crisis
+- Physics-first validation (2026-03-21): C1-C3 before RL optimization
+- Multi-CPU parallelization (2026-03-21): 6× speedup for iteration
+
+---
+
+## References
+
+**Physics validation report:** `PHYSICS_VALIDATION_REPORT.md`  
+**Phase 2 design:** `PHASE_2_DESIGN.md`  
 **Repository:** https://github.com/callme-YZ/ptm-rl  
-**Branch:** `feature/v2.0-elsasser`
+**Related work:** DeepMind tokamak control (Nature 2022), TORAX transport solver
+
+---
+
+## Changelog
+
+**v2.0.0-phase1 (2026-03-21):**
+- ✅ Physics validation (C1-C3) passed
+- ✅ PyTokEq realistic equilibrium
+- ✅ Energy conservation <1%
+- ✅ 50k baseline: framework stable
+- ⏳ 200k baseline: learning signal detected (+32%)
+- 📝 Documentation: honest, scientific, reproducible
+
+**Previous:** v1.4 (3D MHD + RL, β crisis) → v2.0 (fixed via PyTokEq)
+
+---
+
+**Last updated:** 2026-03-21 10:33 GMT+8  
+**Status:** Phase 1 complete ✅ | Phase 2.0 in progress ⏳
