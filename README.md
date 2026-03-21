@@ -1,6 +1,6 @@
 # PIM-RL - Plasma Instability Mode Reinforcement Learning
 
-**Latest Release:** v2.0.0 - Elsässer MHD + Structure-Preserving RL  
+**Latest Release:** v2.0.1 - Fully Reproducible + Structure-Preserving RL  
 **Status:** Production-Ready ✅  
 **License:** MIT
 
@@ -35,19 +35,29 @@ PIM-RL is a physics-faithful reinforcement learning framework for tokamak plasma
 
 ### Installation
 
+**v2.0.1+ (Recommended - Fully Self-Contained):**
+
 ```bash
 # Clone repository
 git clone https://github.com/callme-YZ/pim-rl.git
 cd pim-rl
 
-# Install dependencies
+# Install (includes all v2.0 physics modules)
 pip install -e .
-# or
-pip install numpy scipy gymnasium stable-baselines3 pytokamak
 
-# Install PyTokEq (required for v2.0)
-pip install git+https://github.com/PlasmaControl/PyTokamak.git
+# Quick verification
+cd experiments/v2.0
+python quick_verify.py  # Should complete successfully
 ```
+
+**Dependencies:**
+- Python >= 3.9
+- JAX >= 0.4.0 (for v2.0 Morrison bracket physics)
+- NumPy >= 1.24.0
+- Gymnasium >= 0.29.0
+- Stable-Baselines3 >= 2.0.0
+
+All v2.0 physics modules are now included in the repository. No external dependencies required!
 
 ### Run Training
 

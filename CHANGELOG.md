@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # CHANGELOG Update - Add v1.1 to v1.4
 
+## [2.0.1] - 2026-03-21
+
+### Fixed - Reproducibility
+
+**Critical fix:** v2.0 now fully self-contained and reproducible from clean clone.
+
+**Added:**
+- All 12 v2.0 physics modules now included in repository (`src/pim_rl/physics/v2/`)
+  - Morrison bracket MHD solver (`elsasser_bracket.py`, `complete_solver.py`)
+  - Structure-preserving integration (`toroidal_bracket.py`, `toroidal_hamiltonian.py`)
+  - RMP forcing (`rmp_forcing.py`, `complete_solver_with_rmp.py`)
+  - Equilibrium solver (`solovev.py`, `equilibrium_to_v2.py`)
+  - Ballooning mode IC (`ballooning_ic_v2.py`)
+  - BOUT++ metric (`bout_metric.py`, `field_aligned.py`)
+  - Resistive MHD terms (`resistive_dynamics.py`)
+  - Total: 76.8KB core physics code
+
+**Changed:**
+- Import paths updated to use proper Python package structure
+  - Removed all hardcoded `sys.path.insert` calls
+  - All imports now use `from pim_rl.physics.v2.xxx`
+  - Internal modules use relative imports (`.module_name`)
+- Package configuration updated in `pyproject.toml`
+  - Added `pim_rl`, `pim_rl.physics`, `pim_rl.physics.v2` packages
+  - Enables standard `pip install -e .` workflow
+
+**Verified:**
+- ✅ Clean clone test (Level 2) passes
+- ✅ All validation scripts run from fresh install
+- ✅ No external dependencies on private code
+- ✅ `quick_verify.py` completes successfully
+- ✅ `validate_physics_c2.py` matches baseline (0.468% drift)
+
+**Migration Guide:**
+If you were using v2.0.0 with private modules:
+```python
+# Old (v2.0.0)
+sys.path.insert(0, '/Users/yz/.openclaw/workspace-xiaop/v2.0/src')
+from elsasser_bracket import ElsasserState
+
+# New (v2.0.1)
+from pim_rl.physics.v2.elsasser_bracket import ElsasserState
+```
+
+**Breaking Change:** Import paths updated. Run `pip install -e .` after upgrade.
+
+---
+
 ## [2.0.0] - 2026-03-21
 
 ### Physics Layer (Phase 1)
