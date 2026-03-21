@@ -1,0 +1,156 @@
+"""
+C1: Growth Rate Verification
+
+Measure ballooning mode growth rate and compare with theory.
+
+Theory: γ ~ ωA × √(β/ε)
+  where ωA ~ 1 (normalized Alfvén frequency)
+        β ~ 0.17 (from equilibrium)
+        ε ~ 0.32 (inverse aspect ratio)
+
+Expected: γ ~ √(0.17/0.32) ~ 0.73
+
+Author: 小A 🤖
+Date: 2026-03-21
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mhd_elsasser_env import MHDElsasserEnv
+import os
+
+print('='*60)
+print('C1: Growth Rate Verification')
+print('='*60)
+
+# Create environment
+env = MHDElsasserEnv(grid_shape=(16,32,16), max_episode_steps=200)
+
+# Run uncontrolled episode (zero RMP)
+print('\nRunning uncontrolled episode (200 steps)...')
+obs, info = env.reset(seed=42)
+
+m2_trace = [info.get('m2_amplitude', 0)]
+energy_trace = [info.get('energy', 0)]
+time_steps = [0]
+
+for i in range(200):
+    action = np.zeros(4)  # No RMP control
+    obs, reward, done, trunc, info = env.step(action)
+    
+    m2_trace.append(info.get('m2_amplitude', 0))
+    energy_trace.append(info.get('energy', 0))
+    time_steps.append((i+1) * 0.02)  # dt_rl = 0.02
+    
+    if done or trunc:
+        print(f'Episode terminated at step {i+1}')
+        break
+
+print(f'Collected {len(m2_trace)} data points')
+
+# Exponential fit for growth rate
+# m1(t) = m1_0 * exp(γ*t)
+# log(m1) = log(m1_0) + γ*t
+
+# Use middle portion (skip initial transient and saturation)
+start_idx = 10
+end_idx = min(100, len(m2_trace)-1)
+
+t_fit = np.array(time_steps[start_idx:end_idx])
+m2_fit = np.array(m2_trace[start_idx:end_idx])
+
+# Filter out zeros/near-zeros
+valid = m2_fit > 1e-6
+t_fit = t_fit[valid]
+m2_fit = m2_fit[valid]
+
+if len(t_fit) > 2:
+    log_m1 = np.log(m2_fit)
+    
+    # Linear fit: log(m1) = a + γ*t
+    coeffs = np.polyfit(t_fit, log_m1, 1)
+    gamma_measured = coeffs[0]
+    
+    print('\n' + '='*60)
+    print('Growth Rate Analysis')
+    print('='*60)
+    
+    # Theory prediction
+    beta = 0.17
+    epsilon = 0.32
+    gamma_theory = np.sqrt(beta / epsilon)
+    
+    print(f'Theory prediction:')
+    print(f'  β = {beta:.3f}')
+    print(f'  ε = {epsilon:.3f}')
+    print(f'  γ_theory = √(β/ε) = {gamma_theory:.3f}')
+    print(f'\nMeasured from simulation:')
+    print(f'  γ_measured = {gamma_measured:.3f}')
+    print(f'  Fit range: t={t_fit[0]:.2f} to {t_fit[-1]:.2f}')
+    print(f'\nComparison:')
+    print(f'  Ratio: γ_measured/γ_theory = {gamma_measured/gamma_theory:.3f}')
+    
+    error = abs(gamma_measured - gamma_theory) / gamma_theory * 100
+    print(f'  Error: {error:.1f}%')
+    
+    if error < 20:
+        print('\n✅ Growth rate matches theory (<20% error)')
+    elif error < 50:
+        print('\n⚠️  Moderate agreement (20-50% error)')
+    else:
+        print('\n❌ Poor agreement (>50% error)')
+    
+    # Plot
+    os.makedirs('./validation_results', exist_ok=True)
+    
+    fig, axes = plt.subplots(2, 1, figsize=(10, 8))
+    
+    # Linear plot
+    axes[0].plot(time_steps, m2_trace, 'b-', linewidth=2, label='Simulation')
+    axes[0].axvline(t_fit[0], color='r', linestyle='--', alpha=0.5, label='Fit range')
+    axes[0].axvline(t_fit[-1], color='r', linestyle='--', alpha=0.5)
+    axes[0].set_xlabel('Time')
+    axes[0].set_ylabel('m=2 Amplitude')
+    axes[0].set_title('Ballooning Mode Evolution')
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+    
+    # Semi-log plot with fit
+    axes[1].semilogy(time_steps, m2_trace, 'b-', linewidth=2, label='Simulation')
+    
+    # Theory line
+    t_theory = np.linspace(t_fit[0], t_fit[-1], 100)
+    m1_theory = m2_fit[0] * np.exp(gamma_theory * (t_theory - t_fit[0]))
+    axes[1].semilogy(t_theory, m1_theory, 'r--', linewidth=2, 
+                     label=f'Theory (γ={gamma_theory:.3f})')
+    
+    # Measured fit line
+    m1_measured_fit = m2_fit[0] * np.exp(gamma_measured * (t_theory - t_fit[0]))
+    axes[1].semilogy(t_theory, m1_measured_fit, 'g:', linewidth=2,
+                     label=f'Fit (γ={gamma_measured:.3f})')
+    
+    axes[1].set_xlabel('Time')
+    axes[1].set_ylabel('m=2 Amplitude (log scale)')
+    axes[1].set_title('Exponential Growth Verification')
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend()
+    
+    plt.tight_layout()
+    plt.savefig('./validation_results/c1_growth_rate.png', dpi=150)
+    print(f'\n✅ Plot saved to ./validation_results/c1_growth_rate.png')
+    
+    # Save data
+    np.savez('./validation_results/c1_growth_data.npz',
+             time=time_steps,
+             m1=m2_trace,
+             energy=energy_trace,
+             gamma_measured=gamma_measured,
+             gamma_theory=gamma_theory)
+    print('✅ Data saved to ./validation_results/c1_growth_data.npz')
+    
+else:
+    print('\n❌ Not enough valid data points for fitting')
+
+print('\n' + '='*60)
+print('C1 Complete')
+print('='*60)
