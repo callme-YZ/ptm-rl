@@ -64,4 +64,15 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
-*.log
+ppo_mhd_*
+*.zip
+*_logs/
+*_tensorboard/
+_old/
+
+# Phase 2 cleanup (2026-03-18)
+debug/
+xiaoa_*
+*.png
+!tests/*.png
+!docs/**/*.png

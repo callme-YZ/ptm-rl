@@ -1,0 +1,16 @@
+{
+  "mean_return": -19.9511391773181,
+  "std_return": 0.38005086320989284,
+  "mean_energy_drift": 0.14652520418167114,
+  "std_energy_drift": 2.2063734377297806e-06,
+  "n_episodes": 10,
+  "config": "Option A (w_constraint=0.0)",
+  "reward_components": {
+    "energy": -148.2046526223421,
+    "action": -51.306739150838965,
+    "constraint": 0.0,
+    "energy_pct": 74.28380470165425,
+    "action_pct": 25.716195298345756,
+    "constraint_pct": -0.0
+  }
+}
