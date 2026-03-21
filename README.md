@@ -65,10 +65,13 @@ All v2.0 physics modules are now included in the repository. No external depende
 # Navigate to v2.0 experiments
 cd experiments/v2.0
 
-# Run baseline PPO training (100k steps)
+# Quick verification (20 steps, <1 min)
+python quick_verify.py
+
+# Run baseline PPO training (200k steps, ~45 min on 8-core)
 python train_v2_ppo.py
 
-# Expected: +32% improvement in ~5 minutes (8-core)
+# Expected: +32.1% instability suppression after training
 ```
 
 ### Validate Physics
@@ -106,7 +109,7 @@ Validated Instability Suppression ✅
 
 **RL Performance:**
 - **Instability suppression:** +32.1% (ballooning mode, uncontrolled → RL control)
-- **Training efficiency:** 40 FPS (8-core), 100k steps in 5 min
+- **Training efficiency:** 40 FPS (8-core), 200k steps in ~45 min
 - **Convergence:** Stable, monotonic improvement
 - **Multi-objective:** Balances amplitude suppression + energy penalty
 
