@@ -343,9 +343,11 @@ class MHDElsasserEnv(gym.Env):
         # FFT on velocity perturbation
         fft = np.fft.fft(v_mid, axis=0)
         m1_amplitude = np.abs(fft[1, :]).mean()  # m=1 mode
+        m2_amplitude = np.abs(fft[2, :]).mean()  # m=2 mode (IC uses m=2)
         
-        # Track amplitude
+        # Track amplitude (m1 for reward, m2 for validation)
         self.amplitude_history.append(m1_amplitude)
+        self._last_m2_amplitude = m2_amplitude  # Store for info dict
         
         # Reward: negative amplitude (want to minimize)
         reward = -m1_amplitude
@@ -414,6 +416,10 @@ class MHDElsasserEnv(gym.Env):
         
         if len(self.amplitude_history) > 0:
             info['m1_amplitude'] = self.amplitude_history[-1]
+            # Also provide m2 for validation (computed in _compute_reward)
+            # Need to recompute here since _compute_reward only stores m1
+            if hasattr(self, '_last_m2_amplitude'):
+                info['m2_amplitude'] = self._last_m2_amplitude
         
         if len(self.energy_history) > 0:
             info['energy'] = self.energy_history[-1]
