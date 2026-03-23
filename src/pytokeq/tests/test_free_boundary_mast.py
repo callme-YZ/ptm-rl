@@ -16,8 +16,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'equilibrium'))
 from pytokeq.equilibrium.boundary.free_boundary_picard import (
     solve_free_boundary_picard, FreeBoundaryResult
 )
-from pytokeq.equilibrium.free_boundary_constraints import CoilSet, IsofluxPair
-from pytokeq.equilibrium.boundary.fixed_boundary_picard import solve_picard_gs  # Use existing solver
+from pytokeq.equilibrium.boundary.free_boundary_constraints import CoilSet, IsofluxPair
+from pytokeq.equilibrium.solver.picard_gs_solver import solve_picard_free_boundary
+import pytest
 
 
 class Grid:
@@ -93,18 +94,16 @@ def gs_solver_wrapper(profile, grid, psi_boundary):
     Wrapper to use existing fixed-boundary Picard solver for interior
     
     This solves: Δ*ψ = RHS inside, with ψ = psi_boundary on edges
-    """
-    # Use existing Picard solver
-    result = solve_picard_gs(
-        profile=profile,
-        grid=grid,
-        psi_boundary=psi_boundary,
-        max_iter=50,
-        tol=1e-6,
-        verbose=False
-    )
     
-    return result.psi
+    TODO: Fix to use correct solver API
+    - solve_picard_gs() doesn't exist
+    - Should use solve_picard_free_boundary() with correct signature
+    - Need to adapt parameters to match actual API
+    """
+    raise NotImplementedError(
+        "MAST test needs updating to use correct solver API. "
+        "See solve_picard_free_boundary in picard_gs_solver.py"
+    )
 
 
 def run_mast_test(verbose=True):
