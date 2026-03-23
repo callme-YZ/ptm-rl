@@ -44,6 +44,11 @@ def compute_energy(solver, psi, omega):
     """
     Compute total energy H = ∫[½|∇φ|² + ½|∇ψ|²] dV
     
+    Toroidal coordinates (r, θ):
+    - Metric: |∇f|² = (∂f/∂r)² + (1/r²)(∂f/∂θ)²
+    - Jacobian: √g = r*R where R = R₀ + r*cos(θ)
+    - Volume element: dV = r*R*dr*dθ
+    
     From Stage 1 theory:
     - Kinetic: E_kin = ∫ ½|∇φ|² dV (φ from ∇²φ = ω)
     - Magnetic: E_mag = ∫ ½|∇ψ|² dV
@@ -52,19 +57,19 @@ def compute_energy(solver, psi, omega):
     
     grid = solver.grid
     
-    # Solve for φ from ω (use correct API)
+    # Solve for φ from ω
     phi = solver.compute_phi(omega)
     
-    # Compute gradients using operators module
+    # Compute gradients
     grad_phi_r, grad_phi_theta = gradient_toroidal(phi, grid)
     grad_psi_r, grad_psi_theta = gradient_toroidal(psi, grid)
     
-    # |∇f|² in toroidal geometry
-    grad_phi_sq = grad_phi_r**2 + (grad_phi_theta / grid.R_grid)**2
-    grad_psi_sq = grad_psi_r**2 + (grad_psi_theta / grid.R_grid)**2
+    # |∇f|² with correct toroidal metric (1/r² not 1/R²!)
+    grad_phi_sq = grad_phi_r**2 + (grad_phi_theta / grid.r_grid)**2
+    grad_psi_sq = grad_psi_r**2 + (grad_psi_theta / grid.r_grid)**2
     
-    # Integrate with volume element R dr dθ
-    dV = grid.dr * grid.dtheta * grid.R_grid
+    # Volume element: r * R * dr * dθ (Jacobian = r*R)
+    dV = grid.r_grid * grid.R_grid * grid.dr * grid.dtheta
     
     E_kin = 0.5 * np.sum(grad_phi_sq * dV)
     E_mag = 0.5 * np.sum(grad_psi_sq * dV)
