@@ -19,8 +19,6 @@
 2. **Numerical verification:** Long-term energy conservation, symplectic structure tests
 3. **RL Integration Guidance:** What's safe to use, what needs modification
 
-**Timeline:** 1 week (Phase 1 blocker)
-
 ---
 
 ## 1. Background & Motivation
@@ -37,7 +35,7 @@
 **Risk if we skip this:**
 - Train HNN on non-Hamiltonian system → model learns inconsistent dynamics
 - Policy exploits numerical artifacts instead of physics
-- Waste weeks debugging RL failures that are actually physics issues
+- Debug RL failures that are actually unverified physics assumptions
 
 ### 1.2 小A's v2.1 Experience (Critical Lesson)
 
@@ -364,42 +362,38 @@ assert |state_full - state_split| < C * dt**2
 
 ## 4. Implementation Plan
 
-### 4.1 Phase Breakdown
+### 4.1 Task Breakdown
 
-**Week 1: Classification & Basic Verification (Phase 1 scope)**
+**Phase 1 Scope: Classification & Basic Verification**
 
-**Day 1-2: Classification**
+**Stage 1: Classification**
 - Task 1.1: Code inspection
 - Task 1.2: Theoretical decomposition
 - **Deliverable:** `classification.md`
 
-**Day 3-4: Numerical Tests**
+**Stage 2: Numerical Tests**
 - Task 2.1: Long-term conservation tests
 - Task 2.2: Extended Poisson bracket tests
 - Task 2.3: Integrator comparison
 - **Deliverable:** Test suite + results
 
-**Day 5: Dissipation Characterization**
+**Stage 3: Dissipation Characterization**
 - Task 3.1: Energy dissipation rate
 - Task 3.2: Operator splitting
 - **Deliverable:** Validation report
 
-**Day 6-7: Documentation & RL Guidance**
+**Stage 4: Documentation & RL Guidance**
 - Synthesize findings
 - Write RL integration recommendations
 - **Deliverable:** `hamiltonian_verification_report.md`
 
-**Effort:** ~30-40 hours (1 week full-time, or 1.5 weeks part-time)
-
 ---
 
-**Phase 2 (Optional Advanced Verification, defer if time limited):**
+**Phase 2 (Optional Advanced Verification):**
 - Shadow Hamiltonian analysis
 - Poincaré sections
 - Detailed Jacobi identity proof
 - Comparison with other MHD codes
-
-**Effort:** +1-2 weeks
 
 ---
 
@@ -561,8 +555,8 @@ loss = mse_loss + λ * energy_drift_penalty
 - **Impact:** Medium (can still decompose, use Option B)
 - **Mitigation:** Test both ideal (η=0) and resistive (η>0) cases
 
-**Risk 3: Takes longer than 1 week**
-- **Probability:** Medium (complex topic)
+**Risk 3: Scope creep**
+- **Probability:** Medium (complex topic can expand)
 - **Impact:** Medium (delays Phase 1 completion)
 - **Mitigation:** 
   - Defer Phase 2 advanced analysis
@@ -615,8 +609,6 @@ loss = mse_loss + λ * energy_drift_penalty
 
 **Approve by:** YZ (before starting implementation)
 
-**Expected review time:** 1 day
-
 **Execution start:** After YZ approval
 
 ---
@@ -625,12 +617,12 @@ loss = mse_loss + λ * energy_drift_penalty
 
 1. Create GitHub Issue comment with approved plan
 2. Create test files structure
-3. Start Day 1-2: Classification tasks
-4. Daily progress updates in Issue #23
+3. Start Stage 1: Classification tasks
+4. Regular progress updates in Issue #23
 
 ---
 
-_This design document defines the foundation for all v3.0 Hamiltonian RL work. Thoroughness here saves weeks of debugging later._
+_This design document defines the foundation for all v3.0 Hamiltonian RL work. Thoroughness here prevents future debugging costs._
 
 **小P committed to getting this right** ⚛️✅
 
@@ -798,7 +790,7 @@ def policy_gradient(state, action):
 
 **Deliverable:** `reports/code_comparison.md`
 
-**Note:** This is NOT critical path, defer if Phase 1 timeline tight
+**Note:** This is NOT critical path for Phase 1
 
 ---
 
