@@ -27,12 +27,25 @@ except ImportError:
     from pytokmhd.operators import laplacian_toroidal
     
     def ballooning_ic(grid, beta=0.17, q_axis=1.2, shear=0.5):
-        """Simple initial condition for testing"""
-        r = grid.r[:, None]
-        theta = grid.theta[None, :]
+        """
+        Initial condition that satisfies boundary conditions.
         
-        # Simple flux perturbation
-        psi = beta * r**2 * np.sin(theta)
+        BCs:
+        - Axis (r=0): axisymmetric → ψ(0,θ) = constant
+        - Edge (r=a): conducting wall → ψ(a,θ) = 0
+        
+        Use profile: ψ = β·(r² - r⁴)·sin(θ)
+        Then enforce axis BC to avoid initial jump.
+        """
+        r = grid.r_grid / grid.a  # Normalize to [0,1]
+        theta = grid.theta_grid
+        
+        # Flux profile that vanishes at edge
+        psi = beta * (r**2 - r**4) * np.sin(theta)
+        
+        # Enforce boundary conditions on IC
+        psi[0, :] = np.mean(psi[0, :])  # Axis: constant
+        psi[-1, :] = 0.0                 # Edge: conducting wall
         
         # Vorticity from Laplacian of flux
         omega = -laplacian_toroidal(psi, grid)

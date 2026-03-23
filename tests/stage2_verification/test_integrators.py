@@ -29,10 +29,15 @@ except ImportError:
     from pytokmhd.operators import laplacian_toroidal
     
     def ballooning_ic(grid, beta=0.17, q_axis=1.2, shear=0.5):
-        """Simple initial condition for testing"""
-        r = grid.r[:, None]
-        theta = grid.theta[None, :]
-        psi = beta * r**2 * np.sin(theta)
+        """
+        Initial condition satisfying boundary conditions.
+        ψ = β·(r² - r⁴)·sin(θ), then enforce axis/edge BC.
+        """
+        r = grid.r_grid / grid.a
+        theta = grid.theta_grid
+        psi = beta * (r**2 - r**4) * np.sin(theta)
+        psi[0, :] = np.mean(psi[0, :])
+        psi[-1, :] = 0.0
         omega = -laplacian_toroidal(psi, grid)
         return psi, omega
 
