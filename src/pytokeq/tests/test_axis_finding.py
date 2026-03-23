@@ -11,8 +11,8 @@ Status: TEST ONLY (will fail until Step 3 implementation)
 import numpy as np
 import pytest
 
-# Will import after Step 3
-# from pytokeq.equilibrium.solver.picard_gs_solver import find_psi_axis, Grid
+# Import axis finding utilities
+from pytokeq.equilibrium.solver.picard_gs_solver import find_psi_axis, Grid
 
 
 def test_axis_normal_case():
