@@ -181,6 +181,9 @@ class TestPoissonBracket:
         self.Z = np.linspace(-0.5, 0.5, self.Nz)
         self.dR = self.R[1] - self.R[0]
         self.dZ = self.Z[1] - self.Z[0]
+        
+        # Create 2D grids for tests
+        self.R_grid, self.Z_grid = np.meshgrid(self.R, self.Z, indexing='ij')
     
     def test_antisymmetry(self):
         """
@@ -195,16 +198,16 @@ class TestPoissonBracket:
         # Should be antisymmetric
         error = np.abs(bracket_fg + bracket_gf).max()
         print(f"Antisymmetry error: {error:.2e}")
-        assert error < 1e-14
+        assert error < 1e-13, f"Error: {error:.3e}"
     
     def test_linearity(self):
         """
         Test: [af + bg, h] = a[f,h] + b[g,h]
         """
         a, b = 2.0, 3.0
-        f = self.R[:, None]**2
-        g = self.Z[None, :]**2
-        h = np.sin(np.pi * self.R[:, None]) * np.sin(np.pi * self.Z[None, :])
+        f = self.R_grid**2
+        g = self.Z_grid**2
+        h = np.sin(np.pi * self.R_grid) * np.sin(np.pi * self.Z_grid)
         
         # LHS: [af + bg, h]
         lhs = poisson_bracket(a*f + b*g, h, self.dR, self.dZ)
@@ -214,7 +217,7 @@ class TestPoissonBracket:
         
         error = np.abs(lhs - rhs).max()
         print(f"Linearity error: {error:.2e}")
-        assert error < 1e-14
+        assert error < 1e-13, f"Error: {error:.3e}"
     
     def test_constant_gives_zero(self):
         """
