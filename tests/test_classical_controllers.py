@@ -202,40 +202,34 @@ class TestPIDTuning:
         
         agent.reset()
         
-        # High m1_amp → should increase eta_mult
+        # High m1_amp → should increase eta_mult (小P physics ⚛️)
         obs_high = np.zeros(23, dtype=np.float32)
-        obs_high[7] = 0.5
+        obs_high[7] = 0.5  # High m1 amplitude
         
         action_high = agent.act(obs_high)
         
-        # error = 0.0 - 0.5 = -0.5
-        # u = Kp * (-0.5) = -2.5
-        # eta_mult = 1.0 + (-2.5) = -1.5 → clipped to 0.5
-        # (Actually should increase eta to suppress mode, 
-        #  so negative error → negative u → lower eta)
-        # 
-        # Wait, physics check: Higher η suppresses mode
-        # So to reduce high amplitude, need higher η
-        # error = target - current = 0 - 0.5 = -0.5
-        # Want positive control → increase η
-        # Current formula: eta = 1.0 + Kp*error = 1.0 - 2.5 = -1.5
-        # This is WRONG! Should be eta = 1.0 - Kp*error
+        # Physics (小P ⚛️): Higher η suppresses tearing mode
+        # error = m1_amp - target = 0.5 - 0.0 = 0.5 (positive)
+        # u = Kp * error = 5.0 * 0.5 = 2.5
+        # eta_mult = 1.0 + u = 3.5 → clipped to 2.0 ✅
         
-        # Actually, let me check the physics:
-        # m1_amp is high → want to suppress → need high η
-        # error = 0 - m1_amp → negative
-        # u = Kp * error → negative
-        # eta = 1.0 + u → less than 1.0 → WRONG!
+        # Verify eta_mult increased
+        assert action_high[0] > 1.0, "High m1 should increase eta"
+        assert action_high[0] == 2.0, "Should saturate at upper bound"
         
-        # BUG FOUND! PID formula has wrong sign.
-        # Should be: eta = 1.0 - Kp*error
-        # Or flip error definition: error = m1_amp - target
+        # Low m1_amp → should decrease eta_mult
+        obs_low = np.zeros(23, dtype=np.float32)
+        obs_low[7] = 0.0  # Zero amplitude
         
-        # For now, just test that action is in bounds
-        assert np.all(action_high >= action_space.low)
-        assert np.all(action_high <= action_space.high)
+        agent.reset()
+        action_low = agent.act(obs_low)
         
-        print("⚠️  PID: Sign convention needs physics check by 小P")
+        # error = 0.0 - 0.0 = 0.0
+        # u = 0.0
+        # eta_mult = 1.0 (neutral)
+        assert np.isclose(action_low[0], 1.0), "Zero m1 should give neutral eta"
+        
+        print("✅ PID: Correct response to error (小P verified ⚛️)")
 
 
 if __name__ == "__main__":

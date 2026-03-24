@@ -212,7 +212,9 @@ class PIDController(BaselineAgent):
         m1_amp = np.abs(obs[7])  # First ψ Fourier mode
         
         # PID terms
-        error = self.target - m1_amp
+        # Physics (小P ⚛️): Higher η suppresses tearing mode
+        # → Positive error (m1 > target) → increase η
+        error = m1_amp - self.target  # (NOT target - m1_amp)
         
         # Integral (with anti-windup)
         error_int_candidate = self.error_int + error * self.dt
