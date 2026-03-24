@@ -63,6 +63,13 @@ def reset_tearing_mode(env, seed=None):
     # Compute initial observation
     obs = env.obs_computer.compute_observation(psi, phi)
     
+    # Initialize observation cache (Issue #26 sparse obs mode)
+    env._last_obs = obs
+    env._last_psi = psi
+    env._last_phi = phi
+    env.psi = psi
+    env.phi = phi
+    
     # Reset counters
     env.current_step = 0
     env.obs_computer.reset()
