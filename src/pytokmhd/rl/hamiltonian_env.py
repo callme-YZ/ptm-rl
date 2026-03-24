@@ -2,14 +2,17 @@
 MHD Environment with Hamiltonian-Aware Observations (v3.0)
 
 Issue #25 Phase 2: Integration of HamiltonianObservation with Gym environment.
+Issue #26 Phase 2: Integration of ElsasserMHDSolver (real MHD physics).
 
 Uses:
 - Issue #24 API: HamiltonianGradientComputer
 - Issue #25 Phase 1: HamiltonianObservationScalar
+- Issue #26 Phase 1: ElsasserMHDSolver
 
 Features:
 - Exposes Hamiltonian structure to RL (H, ∇H, K, Ω, dH/dt)
-- 22D observation vector (vs 11D Fourier-only)
+- 23D observation vector (vs 11D Fourier-only)
+- Real MHD evolution (Elsasser formulation)
 - Compatible with PPO/SAC
 
 Author: 小A 🤖
@@ -27,6 +30,13 @@ from ..geometry.toroidal import ToroidalGrid
 from ..solvers.hamiltonian_mhd_grad import HamiltonianGradientComputer
 from .hamiltonian_observation import HamiltonianObservationScalar, ObservationNormalizer
 
+# Issue #26: Real MHD solver
+import sys
+sys.path.insert(0, '/Users/yz/.openclaw/workspace-xiaop/pim-rl-v3.0/src')
+from pim_rl.physics.v2.elsasser_mhd_solver import ElsasserMHDSolver
+from pim_rl.physics.v2.complete_solver_v2 import CompleteMHDSolver
+from pim_rl.physics.v2.time_integrators import make_integrator
+
 
 class HamiltonianMHDEnv(gym.Env):
     """
@@ -35,6 +45,7 @@ class HamiltonianMHDEnv(gym.Env):
     v3.0 improvements over v1.x:
     - Hamiltonian structure exposed (H, ∇H, K, Ω, dH/dt)
     - Physics-informed observations (not just Fourier modes)
+    - Real MHD physics (Issue #26)
     - Ready for structure-preserving RL
     
     Observation Space (23D):
@@ -67,6 +78,8 @@ class HamiltonianMHDEnv(gym.Env):
         Radial resolution (default: 32)
     ntheta : int
         Poloidal resolution (default: 64)
+    nz : int
+        Toroidal resolution (for 3D solver, default: 8)
     dt : float
         Timestep (default: 1e-4)
     max_steps : int
@@ -77,6 +90,8 @@ class HamiltonianMHDEnv(gym.Env):
         Base viscosity (default: 1e-4)
     normalize_obs : bool
         Use online normalization (default: True)
+    integrator : str
+        Time integrator ('rk2' or 'symplectic', default: 'rk2')
     """
     
     metadata = {'render_modes': []}
@@ -87,16 +102,45 @@ class HamiltonianMHDEnv(gym.Env):
         a: float = 0.5,
         nr: int = 32,
         ntheta: int = 64,
+        nz: int = 8,
         dt: float = 1e-4,
         max_steps: int = 1000,
         eta: float = 1e-5,
         nu: float = 1e-4,
-        normalize_obs: bool = True
+        normalize_obs: bool = True,
+        integrator: str = 'rk2'
     ):
         super().__init__()
         
-        # Grid
+        # Grid (2D for observation)
         self.grid = ToroidalGrid(R0=R0, a=a, nr=nr, ntheta=ntheta)
+        
+        # Issue #26: Create real MHD solver (3D)
+        dr = a / (nr - 1)
+        dtheta = 2 * np.pi / ntheta
+        Lz = 2 * np.pi * R0  # Toroidal length
+        dz = Lz / nz
+        
+        epsilon = a / R0  # Inverse aspect ratio
+        
+        # Create time integrator
+        time_integrator = make_integrator(integrator)
+        
+        # Create CompleteMHDSolver (3D Elsasser evolution)
+        physics_solver = CompleteMHDSolver(
+            grid_shape=(nr, ntheta, nz),
+            dr=dr,
+            dtheta=dtheta,
+            dz=dz,
+            epsilon=epsilon,
+            eta=eta,
+            pressure_scale=0.2,
+            integrator=time_integrator
+        )
+        
+        # Wrap with ElsasserMHDSolver (converts between (ψ,φ) and (z⁺,z⁻))
+        self.mhd_solver = ElsasserMHDSolver(physics_solver, self.grid)
+        self.solver_initialized = False
         
         # Hamiltonian gradient computer (Issue #24)
         self.grad_computer = HamiltonianGradientComputer(self.grid)
@@ -151,7 +195,7 @@ class HamiltonianMHDEnv(gym.Env):
         
         Returns
         -------
-        obs : np.ndarray, shape (22,)
+        obs : np.ndarray, shape (23,)
             Initial observation
         info : dict
             Additional info
@@ -174,6 +218,10 @@ class HamiltonianMHDEnv(gym.Env):
             0.01 * r * (1 - r) * np.cos(3*theta),
             dtype=jnp.float32
         )
+        
+        # Issue #26: Initialize MHD solver with (ψ, φ)
+        self.mhd_solver.initialize(self.psi, self.phi)
+        self.solver_initialized = True
         
         # Reset counters
         self.current_step = 0
@@ -220,9 +268,10 @@ class HamiltonianMHDEnv(gym.Env):
         eta = self.eta_base * float(eta_mult)
         nu = self.nu_base * float(nu_mult)
         
-        # TODO: Replace with actual MHD solver step
-        # For now, simple dummy step (to be replaced in Phase 3)
-        self.psi, self.phi = self._dummy_solver_step(eta, nu)
+        # Issue #26: Real MHD evolution
+        # Evolution in (z⁺, z⁻) space, then convert back to (ψ, φ) for observation
+        self.mhd_solver.step(self.dt)
+        self.psi, self.phi = self.mhd_solver.get_mhd_state()
         
         # Compute observation
         obs = self._get_observation()
@@ -303,26 +352,6 @@ class HamiltonianMHDEnv(gym.Env):
         # TODO: Implement termination conditions
         return False
     
-    def _dummy_solver_step(
-        self,
-        eta: float,
-        nu: float
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        """
-        Dummy solver step (placeholder).
-        
-        TODO: Replace with actual MHD solver in Phase 3.
-        For now, simple decay.
-        """
-        # Simple exponential decay (dummy dynamics)
-        decay_psi = 1.0 - eta * self.dt * 10.0
-        decay_phi = 1.0 - nu * self.dt * 10.0
-        
-        psi_new = self.psi * decay_psi
-        phi_new = self.phi * decay_phi
-        
-        return psi_new, phi_new
-    
     def render(self):
         """Render environment (not implemented)."""
         pass
@@ -341,5 +370,6 @@ def make_hamiltonian_mhd_env(**kwargs) -> HamiltonianMHDEnv:
     --------
     >>> env = make_hamiltonian_mhd_env()
     >>> env = make_hamiltonian_mhd_env(nr=64, ntheta=128, max_steps=500)
+    >>> env = make_hamiltonian_mhd_env(integrator='symplectic')  # Use symplectic integrator
     """
     return HamiltonianMHDEnv(**kwargs)
