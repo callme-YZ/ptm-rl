@@ -4,9 +4,12 @@ Differential Operators Module
 Provides differential operators (gradient, divergence, Laplacian, Poisson bracket)
 in toroidal geometry.
 
+Note: Poisson solver has been moved to pytokmhd.solvers.
+      operators.poisson_solver is DEPRECATED (broken implementation).
+
 Author: 小P ⚛️
 Created: 2026-03-17
-Updated: 2026-03-19 (added Poisson bracket)
+Updated: 2026-03-24 (deprecated poisson_solver)
 """
 
 from .toroidal_operators import (
@@ -20,13 +23,14 @@ from .poisson_bracket import (
     jacobi_identity_residual,
     advection_bracket,
 )
-from .poisson_solver import (
-    solve_poisson_toroidal,
-    laplacian_toroidal_check,
-)
 from .utils import B_poloidal_from_psi
 
+# Deprecated imports (kept for backward compatibility, emit warnings)
+# DO NOT USE - import from pytokmhd.solvers instead
+# from .poisson_solver import solve_poisson_toroidal, laplacian_toroidal_check
+
 __all__ = [
+    # Active operators
     'gradient_toroidal',
     'divergence_toroidal',
     'laplacian_toroidal',
@@ -34,7 +38,9 @@ __all__ = [
     'poisson_bracket',
     'jacobi_identity_residual',
     'advection_bracket',
-    'solve_poisson_toroidal',
-    'laplacian_toroidal_check',
-    'B_poloidal_from_psi'
+    'B_poloidal_from_psi',
+    
+    # Removed (deprecated):
+    # 'solve_poisson_toroidal',  # Use pytokmhd.solvers.solve_poisson_toroidal
+    # 'laplacian_toroidal_check',  # Use laplacian_toroidal
 ]
