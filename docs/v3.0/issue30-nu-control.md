@@ -1,91 +1,94 @@
-# Issue #30: Implement ν (Viscosity) Control for Tearing Mode Suppression
+# Issue #30: Implement Viscosity (ν) Control
 
-**Created:** 2026-03-24 18:22  
-**Owner:** TBD (小P ⚛️ physics + 小A 🤖 integration)  
+**Created:** 2026-03-24 18:31  
 **Priority:** v3.1  
-**Depends on:** Issue #28 (baseline established)
+**Owner:** TBD (小P physics + 小A integration)  
+**Status:** 📋 OPEN
 
 ---
 
 ## Problem Statement
 
-**Issue #28 finding:** Current implementation controls η (resistivity), which is **counterproductive** for tearing mode suppression.
+**Current Issue #28 limitation:** Control action manipulates η (resistivity), which is **counterproductive** for tearing mode suppression.
 
-**Physics (小P ⚛️):**
-- **Current:** Control η (resistivity)
-  - η ↑ → Magnetic dissipation ↑ ✅
-  - **BUT η ↑ → Growth rate γ ↑** (γ ~ η^0.6) ❌
-  - **Net effect: May worsen instability!**
+**Physics analysis (小P ⚛️):**
+```
+Tearing mode growth rate: γ ~ η^(3/5)
 
-- **Should:** Control ν (viscosity)
-  - ν ↑ → Fluid damping ↑
-  - Suppresses velocity fluctuations
-  - **Net effect: Stabilizes mode** ✅
+η ↑ → Dissipation ↑ ✅  
+BUT η ↑ → Growth rate ↑ ❌
 
-**Evidence from Issue #28:**
-- PID with η control: +23.20% growth
-- no_control: +23.37% growth
-- **Difference: 0.17%** (negligible, almost identical)
-
-**Root cause:** Controlling wrong physics variable!
-
----
-
-## Current Status
-
-**Environment API:**
-```python
-action = [eta_mult, nu_mult]  # 2D action space
-obs, reward, done, info = env.step(action)
+Result: η control may INCREASE instability!
 ```
 
-**Action space exists ✅ BUT:**
-
-**Implementation in `hamiltonian_env.py` (line 287-289):**
-```python
-# Extract action
-eta_mult, nu_mult = action
-eta = self.eta_base * float(eta_mult)
-nu = self.nu_base * float(nu_mult)
-
-# Apply action to solver (Issue #28 fix)
-# Note: viscosity (nu) not yet implemented in CompleteMHDSolver
-# Only resistivity (eta) control functional
-self.mhd_solver.solver.set_eta(eta)
-# ❌ NO set_nu() call!
+**Correct control variable:** ν (viscosity)
+```
+ν ↑ → Fluid damping ↑ → Suppresses instability ✅
 ```
 
-**`CompleteMHDSolver` status:**
-- ✅ Has `set_eta()` method (Issue #28)
-- ❌ Missing `set_nu()` method
-- ❓ Viscosity term in physics equations (unknown)
+---
+
+## Current Code Status
+
+### Environment (hamiltonian_env.py)
+
+**Line 280-290:**
+```python
+def step(self, action):
+    # Extract action
+    eta_mult, nu_mult = action  # ν action accepted
+    eta = self.eta_base * float(eta_mult)
+    nu = self.nu_base * float(nu_mult)
+    
+    # Apply action (Issue #28 fix)
+    # Note: viscosity (nu) not yet implemented in CompleteMHDSolver
+    # Only resistivity (eta) control functional
+    self.mhd_solver.solver.set_eta(eta)
+    # ❌ NO set_nu() call!
+```
+
+**Problem:** ν action accepted but ignored!
 
 ---
 
-## Objectives
+### Solver (complete_solver_v2.py)
 
-### Primary Goal
-Implement functional ν (viscosity) control to enable meaningful tearing mode suppression.
+**Has:**
+- ✅ `set_eta(eta)` method (Issue #28)
+- ✅ η term in physics equations
 
-### Success Criteria
-1. ✅ `set_nu()` method added to CompleteMHDSolver
-2. ✅ Viscosity term active in MHD equations
-3. ✅ Environment applies ν action to solver
-4. ✅ PID controller shows >5% growth difference vs no_control
-5. ✅ Baseline experiments re-run with ν control
+**Missing:**
+- ❌ `set_nu(nu)` method
+- ❓ ν term in physics equations (needs verification)
 
 ---
 
-## Scope
+## Implementation Plan
 
-### Phase 1: Physics Implementation (小P ⚛️)
+### Phase 1: Physics Verification (小P ⚛️)
 
-**Task 1.1: Verify viscosity term exists**
-- Check `complete_solver_v2.py` for ν term
-- Look for: `-ν ∇²v` in momentum equation
-- If missing: Implement viscosity physics
+**Goal:** Verify viscosity term exists in CompleteMHDSolver
 
-**Task 1.2: Add `set_nu()` method**
+**Check:**
+```python
+# In RHS computation:
+# Should have: -ν∇²v (viscous damping term)
+# Currently has: -η∇²B (resistive term) ✅
+```
+
+**Expected time:** 15 min
+
+**Outcome:**
+- If exists ✅ → Proceed to Phase 2
+- If missing ❌ → Add viscosity physics (~1-2 hours)
+
+---
+
+### Phase 2: Add set_nu() Method (小P ⚛️)
+
+**File:** `src/pytokmhd/solver/complete_solver_v2.py`
+
+**Implementation:**
 ```python
 def set_nu(self, nu: float):
     """
@@ -94,211 +97,281 @@ def set_nu(self, nu: float):
     Parameters
     ----------
     nu : float
-        New viscosity value
+        Kinematic viscosity (m²/s in SI, normalized in code)
         
     Notes
     -----
-    For RL control of tearing mode suppression.
-    Higher viscosity → stronger damping → suppression.
+    Called by environment before each step to apply control action.
+    Modifies viscous damping term in momentum equation.
+    
+    Issue: #30
     """
     self.nu = nu
+    # May need to update cached operators if ν enters precomputed terms
 ```
 
-**Task 1.3: Verify conservation laws**
-- Energy conservation still holds
-- Momentum conservation correct
-- Hamiltonian structure preserved
+**Tests:**
+```python
+def test_set_nu():
+    solver = CompleteMHDSolver(nu=1e-4)
+    solver.set_nu(2e-4)
+    assert solver.nu == 2e-4
+```
 
-**Estimated time:** 1-2 hours (if ν term exists), 3-4 hours (if need to implement)
+**Expected time:** 10 min (if viscosity exists)
 
 ---
 
-### Phase 2: Environment Integration (小A 🤖)
+### Phase 3: Environment Integration (小A 🤖)
 
-**Task 2.1: Update `hamiltonian_env.py`**
+**File:** `src/pytokmhd/rl/hamiltonian_env.py`
+
+**Change:**
 ```python
-def step(self, action, compute_obs=True):
+def step(self, action):
     # Extract action
     eta_mult, nu_mult = action
     eta = self.eta_base * float(eta_mult)
     nu = self.nu_base * float(nu_mult)
     
-    # Apply action to solver
+    # Apply action (Issue #30 fix)
     self.mhd_solver.solver.set_eta(eta)
-    self.mhd_solver.solver.set_nu(nu)  # ← ADD THIS
+    self.mhd_solver.solver.set_nu(nu)  # ✅ ADD THIS LINE
     
-    # Continue...
+    # MHD evolution
+    self.mhd_solver.step(self.dt)
+    ...
 ```
 
-**Task 2.2: Update PID controller**
+**Tests:**
 ```python
-# Current (controls η):
-action = [eta_mult, 1.0]
+def test_nu_control():
+    env = make_hamiltonian_mhd_env(nu_base=1e-4)
+    action = [1.0, 2.0]  # Double ν
+    env.step(action)
+    assert env.mhd_solver.solver.nu == 2e-4
+```
 
-# New (controls ν):
-action = [1.0, nu_mult]  # Keep η fixed, control ν
+**Expected time:** 10 min
 
-# Or both (advanced):
+---
+
+### Phase 4: PID Controller Update (小A 🤖)
+
+**File:** `src/pytokmhd/rl/classical_controllers.py`
+
+**Current (Issue #28 workaround):**
+```python
+# PID controls η (wrong variable)
+action = [eta_mult, 1.0]  # Keep ν fixed
+```
+
+**Correct (Issue #30):**
+```python
+# PID controls ν (correct variable)
+action = [1.0, nu_mult]  # Keep η fixed
+```
+
+**Or dual control:**
+```python
+# Control both (advanced)
 action = [eta_mult, nu_mult]
 ```
 
-**Estimated time:** 30 min
+**Expected time:** 5 min
 
 ---
 
-### Phase 3: Validation & Experiments (小A + 小P)
+### Phase 5: Validation Experiments (小A 🤖)
 
-**Task 3.1: Unit tests**
-- Test `set_nu()` actually changes ν
-- Test evolution differs with different ν
-- Test conservation laws hold
+**Goal:** Verify ν control actually suppresses tearing mode
 
-**Task 3.2: Quick validation**
-- Single trial: no_control vs PID with ν
-- Expect: PID shows reduced growth
-- If not: Debug physics
+**Experiment 1: ν step response**
+```python
+# Fixed ν increase
+nu_base = 1e-4
+nu_high = 1e-3  # 10× increase
+action = [1.0, 10.0]
 
-**Task 3.3: Re-run baseline experiments**
-- Same setup as Issue #28
-- 3 controllers × 5 trials
-- Compare with Issue #28 results
+# Expected: Slower growth (damping works)
+```
 
-**Expected results:**
-| Controller | Issue #28 (η) | Issue #30 (ν) | Improvement |
-|------------|---------------|---------------|-------------|
-| no_control | +23.37%       | +23.37%       | 0% (baseline) |
-| PID        | +23.20%       | **+15-18%?**  | **~5-8%** ✅ |
+**Experiment 2: Re-run baselines**
+- no_control (ν = 1e-4 fixed)
+- PID (controls ν)
 
-**Estimated time:** 1 hour
+**Success criteria:**
+- PID growth < no_control growth
+- Meaningful difference (>5%)
+
+**Expected time:** 30 min
 
 ---
 
-## Technical Details
+### Phase 6: Documentation (Both)
 
-### Viscosity in MHD Equations
+**Update:**
+1. Issue #28 completion report (reference Issue #30)
+2. Issue #30 completion report
+3. Controller comparison (η vs ν control)
 
-**Momentum equation (should have):**
-```
-∂v/∂t + v·∇v = -∇p + j×B - ν∇²v
-                              ↑ This term
-```
-
-**Effect of ν:**
-- Damps velocity fluctuations
-- Reduces Reynolds number Re ~ v L / ν
-- Stabilizes fluid instabilities
-
-**Tearing mode suppression mechanism:**
-- Tearing mode grows via reconnection flows
-- ν damps these flows
-- Growth rate reduced: γ(ν) < γ(ν=0)
-
-### Current vs Desired Control
-
-**Issue #28 (η control):**
-```
-Action: η_mult ∈ [0.5, 1.5]
-η_actual = 0.05 × η_mult ∈ [0.025, 0.075]
-
-Problem: γ ~ η^0.6
-η × 2 → γ × 1.5 (growth INCREASES!)
-```
-
-**Issue #30 (ν control):**
-```
-Action: ν_mult ∈ [0.5, 1.5]
-ν_actual = 1e-4 × ν_mult ∈ [5e-5, 1.5e-4]
-
-Desired: γ decreases with ν
-ν × 2 → γ × 0.7 (growth DECREASES)
-```
+**Expected time:** 15 min
 
 ---
 
-## Implementation Plan
+## Total Effort Estimate
 
-### Timeline (v3.1)
+**If viscosity physics exists:**
+- Phase 1: 15 min (verification)
+- Phase 2: 10 min (set_nu)
+- Phase 3: 10 min (environment)
+- Phase 4: 5 min (controller)
+- Phase 5: 30 min (validation)
+- Phase 6: 15 min (docs)
+- **Total: ~1.5 hours** ✅
 
-**Week 1:**
-- Day 1: 小P verifies viscosity term (2 hours)
-- Day 2: 小P implements `set_nu()` + tests (3 hours)
-- Day 3: 小A integrates + quick test (1 hour)
-
-**Week 2:**
-- Day 1: Re-run baseline experiments (1 hour)
-- Day 2: Analysis + report (2 hours)
-- Day 3: Issue #30 closure
-
-**Total estimate:** 9 hours work, 2 weeks calendar time
-
----
-
-## Risks & Mitigation
-
-### Risk 1: Viscosity term not in solver
-**Probability:** Medium  
-**Impact:** High (need to implement physics)  
-**Mitigation:** 小P reviews code first; if missing, escalate to v3.2
-
-### Risk 2: ν control still ineffective
-**Probability:** Low  
-**Impact:** Medium  
-**Mitigation:** Pre-test with parameter scan before full experiments
-
-### Risk 3: Conservation laws break
-**Probability:** Low  
-**Impact:** High  
-**Mitigation:** Comprehensive validation suite before experiments
+**If viscosity physics missing:**
+- Add physics implementation: +1-2 hours
+- **Total: ~3 hours** ⚠️
 
 ---
 
-## Success Metrics
+## Success Criteria
 
-**Minimum viable:**
-1. ✅ `set_nu()` functional
-2. ✅ PID shows >2% growth difference vs no_control
+### Functional Requirements
 
-**Desired:**
-1. ✅ PID shows >5% growth difference
-2. ✅ Some trials reach Tier 1 (stabilization)
+1. ✅ `set_nu()` method implemented
+2. ✅ Environment calls `set_nu()` before step
+3. ✅ Tests pass (set_nu, env integration, PID)
+4. ✅ ν action measurably affects evolution
 
-**Stretch:**
-1. ✅ PID shows >10% suppression
-2. ✅ >20% trials reach Tier 1
+### Physics Requirements
+
+5. ✅ ν ↑ → Growth rate ↓ (damping works)
+6. ✅ PID with ν control shows suppression
+7. ✅ Difference >5% vs no_control baseline
+
+### Documentation Requirements
+
+8. ✅ Code comments updated
+9. ✅ Tests documented
+10. ✅ Issue #30 completion report
 
 ---
 
-## Related Issues
+## Dependencies
 
-- **Issue #28:** Baseline experiments (η control) ✅ Closed
-- **Issue #29:** Harris sheet IC design ✅ Closed
-- **Issue #26:** Sparse observation mode ✅ Closed
+**Upstream:**
+- Issue #28 (provides baseline for comparison)
+- Issue #29 (Harris sheet IC for testing)
+- Issue #26 fix (sparse observation mode)
 
-**Blocked by:** None  
-**Blocks:** Future RL training (needs meaningful control to learn)
+**Downstream:**
+- Future RL training (v3.1+)
+- Controller comparison studies
+
+---
+
+## Risk Assessment
+
+**Low risk IF:**
+- ✅ Viscosity term already in solver
+- ✅ Just need setter method
+
+**Medium risk IF:**
+- ⚠️ Viscosity missing from physics
+- ⚠️ Need to add term to equations
+
+**Mitigation:**
+- Phase 1 verification identifies risk early
+- Can defer to v3.2 if complex
+
+---
+
+## Physics Background (小P ⚛️)
+
+### Tearing Mode Suppression Mechanisms
+
+**Resistive control (η):**
+```
+γ ~ η^(3/5) / λ^(4/5)
+
+η ↑ → Faster reconnection
+    → INCREASES growth rate ❌
+```
+
+**Viscous control (ν):**
+```
+Momentum equation:
+∂v/∂t = ... - ν∇²v
+
+ν ↑ → Stronger fluid damping
+    → Suppresses velocity fluctuations
+    → Reduces tearing growth ✅
+```
+
+**Experimental evidence:**
+- Tokamaks use external coil damping (effective ν)
+- Never use resistivity control for mode suppression
+- ν is the standard actuator
+
+---
+
+## Related Work
+
+**Issue #28 findings:**
+- η control: +23.20% growth (PID)
+- η control: +23.37% growth (no_control)
+- Difference: 0.17% (negligible)
+
+**Expected with ν control:**
+- ν control: ~15-18% growth (PID)
+- ν control: ~23% growth (no_control)
+- Difference: ~5-8% (meaningful!)
+
+---
+
+## Acceptance Criteria
+
+**For closure, must show:**
+
+1. **Code implementation:**
+   - ✅ set_nu() method exists
+   - ✅ Environment calls it
+   - ✅ Tests pass
+
+2. **Physics validation:**
+   - ✅ ν ↑ → Growth ↓ (step response)
+   - ✅ PID suppresses >5% vs baseline
+   - ✅ Conservation laws still hold
+
+3. **Documentation:**
+   - ✅ Completion report
+   - ✅ Code comments
+   - ✅ Test coverage
+
+**If ANY criterion fails → Issue remains OPEN**
 
 ---
 
 ## Notes
 
-**Why defer to v3.1?**
-- v3.0 Phase 3 nearly complete
-- Issue #28 objective met (baseline established)
-- ν implementation non-trivial (~9 hours)
-- Better to do properly in v3.1 than rush now
+**Design decision:** Control ν only (keep η fixed)
+- Simpler implementation
+- Correct physics
+- Matches tokamak practice
 
-**Alternative approaches (future):**
-- Control external current (J_ext)
-- Control RMP coils
-- Control heating/fueling
-
-**Physics references:**
-- Furth-Killeen-Rosenbluth (1963) - Tearing mode theory
-- Biskamp (2000) - Viscosity effects on instabilities
-- Wesson (2011) - MHD control methods
+**Future work (v3.2+):**
+- Dual control (η + ν optimization)
+- External current drive (J_ext)
+- RMP coils (m/n spectrum control)
 
 ---
 
 **Created by:** 小A 🤖  
-**Date:** 2026-03-24 18:22  
-**Status:** 📋 OPEN (v3.1)
+**Physics by:** 小P ⚛️  
+**Date:** 2026-03-24 18:31 PM
+
+---
+
+_Issue #30 tracks the proper implementation of viscosity control to enable meaningful tearing mode suppression._
