@@ -81,6 +81,17 @@ class CompleteMHDSolver:
         else:
             print(f"  Structure-preserving: ❌ Not symplectic")
     
+    def set_eta(self, eta: float):
+        """
+        Update resistivity parameter (for RL control).
+        
+        Parameters
+        ----------
+        eta : float
+            New resistivity value
+        """
+        self.eta = eta
+    
     def hamiltonian(self, state: ElsasserState) -> float:
         """Compute Hamiltonian (energy)."""
         return toroidal_hamiltonian(state, self.grid, self.epsilon)

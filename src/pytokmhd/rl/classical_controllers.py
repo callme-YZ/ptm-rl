@@ -133,13 +133,15 @@ class PIDController(BaselineAgent):
         u = Kp * error + Ki * ∫error dt + Kd * d(error)/dt
     
     Control variable: m=1 Fourier mode amplitude
-    Control action: Viscosity multiplier (nu_mult)
+    Control action: Resistivity multiplier (eta_mult)
     
-    Physics (小P corrected ⚛️):
+    Physics (Issue #28 temporary):
     - m=1 mode drives tearing instability
-    - Tearing mode driven by velocity shear
-    - Higher ν → viscous damping → suppresses velocity → mode suppression
-    - PID tunes ν to maintain target amplitude
+    - Higher η → faster reconnection → mode saturation/suppression
+    - PID tunes η to maintain target amplitude
+    
+    Note: Viscosity control (ν) deferred to future issue
+          (CompleteMHDSolver doesn't implement ν yet)
     
     Features:
     - Anti-windup protection
@@ -207,10 +209,10 @@ class PIDController(BaselineAgent):
         Alternative: Could extract exact m=1 from state,
         but for PID baseline, first mode is sufficient.
         """
-        # Extract m=1 amplitude (use first Fourier mode as proxy)
-        # Note: This is simplified. For exact m=1, would need full state.
-        # But for baseline comparison, this is acceptable.
-        m1_amp = np.abs(obs[7])  # First ψ Fourier mode
+        # Extract m=1 amplitude
+        # Observation: [H, K, Ω, dH/dt, drift, grad, J_max, psi_modes[8], phi_modes[8]]
+        # obs[7] = psi m=0, obs[8] = psi m=1 (小P correction ⚛️)
+        m1_amp = np.abs(obs[8])  # psi m=1 Fourier mode
         
         # PID terms
         # Physics (小P ⚛️): Higher η suppresses tearing mode
@@ -229,25 +231,23 @@ class PIDController(BaselineAgent):
         # PID output
         u = self.Kp * error + self.Ki * error_int_candidate + self.Kd * error_der
         
-        # Action: nu_mult (control viscosity)
-        # Physics (小P corrected ⚛️):
-        # - Higher ν → stronger viscous damping → suppresses velocity
-        # - Tearing mode driven by velocity shear
-        # - Damping velocity → mode suppression ✅
-        nu_mult = 1.0 + u
+        # Action: eta_mult (control resistivity)
+        # Temporary: control η instead of ν (Issue #28)
+        # ν control deferred until CompleteMHDSolver implements viscosity
+        eta_mult = 1.0 + u
         
         # Clip to valid range
-        nu_mult_clipped = np.clip(nu_mult, self.action_low[1], self.action_high[1])
+        eta_mult_clipped = np.clip(eta_mult, self.action_low[0], self.action_high[0])
         
         # Anti-windup: Only integrate if not saturated
-        if np.abs(nu_mult_clipped - nu_mult) < 1e-6:
+        if np.abs(eta_mult_clipped - eta_mult) < 1e-6:
             # Not saturated, update integral
             self.error_int = error_int_candidate
         # else: saturated, don't update integral (anti-windup)
         
         # Action: [eta_mult, nu_mult]
-        # Keep eta_mult = 1.0 (don't control resistivity)
-        action = np.array([1.0, nu_mult_clipped], dtype=np.float32)
+        # Control resistivity, keep viscosity at baseline
+        action = np.array([eta_mult_clipped, 1.0], dtype=np.float32)
         
         # Update state
         self.error_prev = error

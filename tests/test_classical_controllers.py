@@ -97,8 +97,9 @@ class TestBaselineAgents:
         assert np.all(action >= action_space.low)
         assert np.all(action <= action_space.high)
         
-        # Check eta_mult unchanged (should be 1.0)
-        assert np.isclose(action[0], 1.0)
+        # Check nu_mult unchanged (should be 1.0)
+        # Note: Now controlling eta instead of nu (Issue #28)
+        assert np.isclose(action[1], 1.0)
         
         print("✅ PID: Basic functionality works")
     
@@ -202,9 +203,9 @@ class TestPIDTuning:
         
         agent.reset()
         
-        # High m1_amp → should increase nu_mult (小P corrected ⚛️)
+        # High m1_amp → should increase eta_mult (Issue #28)
         obs_high = np.zeros(23, dtype=np.float32)
-        obs_high[7] = 0.5  # High m1 amplitude
+        obs_high[8] = 0.5  # High m1 amplitude (obs[8] = m=1)
         
         action_high = agent.act(obs_high)
         
@@ -213,12 +214,13 @@ class TestPIDTuning:
         # u = Kp * error = 5.0 * 0.5 = 2.5
         # nu_mult = 1.0 + u = 3.5 → clipped to 2.0 ✅
         
-        # Verify nu_mult increased (action[1])
-        assert action_high[1] > 1.0, "High m1 should increase nu"
-        assert action_high[1] == 2.0, "Should saturate at upper bound"
+        # Verify eta_mult increased (action[0])
+        # Note: Now controlling eta instead of nu (Issue #28)
+        assert action_high[0] > 1.0, "High m1 should increase eta"
+        assert action_high[0] == 2.0, "Should saturate at upper bound"
         
-        # Verify eta_mult unchanged (action[0])
-        assert np.isclose(action_high[0], 1.0), "eta should be constant"
+        # Verify nu_mult unchanged (action[1])
+        assert np.isclose(action_high[1], 1.0), "nu should be constant"
         
         # Low m1_amp → should give neutral nu_mult
         obs_low = np.zeros(23, dtype=np.float32)
@@ -229,8 +231,8 @@ class TestPIDTuning:
         
         # error = 0.0 - 0.0 = 0.0
         # u = 0.0
-        # nu_mult = 1.0 (neutral)
-        assert np.isclose(action_low[1], 1.0), "Zero m1 should give neutral nu"
+        # eta_mult = 1.0 (neutral)
+        assert np.isclose(action_low[0], 1.0), "Zero m1 should give neutral eta"
         
         print("✅ PID: Correct response to error (小P verified ⚛️)")
 

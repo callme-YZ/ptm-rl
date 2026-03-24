@@ -268,6 +268,11 @@ class HamiltonianMHDEnv(gym.Env):
         eta = self.eta_base * float(eta_mult)
         nu = self.nu_base * float(nu_mult)
         
+        # Apply action to solver (Issue #28 fix)
+        # Note: viscosity (nu) not yet implemented in CompleteMHDSolver
+        # Only resistivity (eta) control functional
+        self.mhd_solver.physics_solver.set_eta(eta)
+        
         # Issue #26: Real MHD evolution
         # Evolution in (z⁺, z⁻) space, then convert back to (ψ, φ) for observation
         self.mhd_solver.step(self.dt)
