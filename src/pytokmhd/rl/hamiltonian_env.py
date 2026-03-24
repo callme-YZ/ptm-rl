@@ -292,15 +292,21 @@ class HamiltonianMHDEnv(gym.Env):
         # Evolution in (z⁺, z⁻) space
         self.mhd_solver.step(self.dt)
         
-        # Compute observation (optional, performance optimization)
+        # State update and observation (conditional)
+        # Note: get_mhd_state() is the bottleneck (Poisson ~400ms)
         if compute_obs:
-            # Full observation: includes Poisson conversion (slow ~400ms)
+            # Full update: convert (z+,z-) → (ψ,φ) via Poisson (slow)
             self.psi, self.phi = self.mhd_solver.get_mhd_state()
             obs = self._get_observation()
             self._last_obs = obs  # Cache for future use
+            self._last_psi = self.psi
+            self._last_phi = self.phi
         else:
-            # Use cached observation (fast, no Poisson conversion)
+            # Use cached state and observation (no Poisson conversion)
             obs = self._last_obs if hasattr(self, '_last_obs') else self._get_observation()
+            # Use cached psi/phi for reward computation
+            self.psi = self._last_psi if hasattr(self, '_last_psi') else self.psi
+            self.phi = self._last_phi if hasattr(self, '_last_phi') else self.phi
         
         # Compute reward
         reward, reward_info = self._compute_reward(obs, action)
