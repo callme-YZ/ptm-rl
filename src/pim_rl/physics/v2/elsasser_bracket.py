@@ -3,6 +3,7 @@ Morrison Bracket Implementation for Elsasser MHD (v2.0 Phase 1.1)
 
 Author: 小P ⚛️
 Date: 2026-03-20
+Issue #33: Added JAX pytree registration (小A 🤖, 2026-03-25)
 
 Implements noncanonical Poisson bracket for Elsasser variables in cylindrical geometry.
 
@@ -32,10 +33,31 @@ class ElsasserState:
         P: Normalized pressure (β₀ p)
     
     All fields shape: (Nr, Nθ, Nz) in cylindrical coordinates
+    
+    Issue #33: JAX pytree registration for JIT compatibility.
     """
     z_plus: jnp.ndarray
     z_minus: jnp.ndarray
     P: jnp.ndarray
+
+
+# Register ElsasserState as JAX pytree (Issue #33)
+from jax.tree_util import register_pytree_node
+
+def _elsasser_flatten(state):
+    """Flatten ElsasserState to (values, aux_data)."""
+    return (state.z_plus, state.z_minus, state.P), None
+
+def _elsasser_unflatten(aux_data, values):
+    """Reconstruct ElsasserState from flattened values."""
+    z_plus, z_minus, P = values
+    return ElsasserState(z_plus=z_plus, z_minus=z_minus, P=P)
+
+register_pytree_node(
+    ElsasserState,
+    _elsasser_flatten,
+    _elsasser_unflatten
+)
 
 
 class MorrisonBracket:
